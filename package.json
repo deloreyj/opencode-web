@@ -13,6 +13,7 @@
 		"publish": true
 	},
 	"dependencies": {
+		"@ai-sdk/react": "^2.0.80",
 		"@hookform/resolvers": "^5.2.2",
 		"@radix-ui/react-accordion": "^1.2.12",
 		"@radix-ui/react-alert-dialog": "^1.1.15",
@@ -40,7 +41,9 @@
 		"@radix-ui/react-toggle": "^1.1.10",
 		"@radix-ui/react-toggle-group": "^1.1.11",
 		"@radix-ui/react-tooltip": "^1.2.8",
+		"@radix-ui/react-use-controllable-state": "^1.2.2",
 		"@tailwindcss/vite": "^4.1.14",
+		"ai": "^5.0.80",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
 		"cmdk": "^1.1.1",
@@ -49,6 +52,8 @@
 		"hono": "4.8.2",
 		"input-otp": "^1.4.2",
 		"lucide-react": "^0.544.0",
+		"motion": "^12.23.24",
+		"nanoid": "^5.1.6",
 		"next-themes": "^0.4.6",
 		"react": "19.0.0",
 		"react-day-picker": "^9.11.0",
@@ -57,8 +62,10 @@
 		"react-resizable-panels": "^3.0.6",
 		"recharts": "2.15.4",
 		"sonner": "^2.0.7",
+		"streamdown": "^1.4.0",
 		"tailwind-merge": "^3.3.1",
 		"tailwindcss": "^4.1.14",
+		"use-stick-to-bottom": "^1.1.1",
 		"vaul": "^1.1.2",
 		"zod": "^3.25.76"
 	},
