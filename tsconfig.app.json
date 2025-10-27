@@ -28,5 +28,5 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src/react-app", "src/components", "src/hooks", "src/lib", "src/stories"]
+  "include": ["src/react-app", "src/components", "src/hooks", "src/lib", "src/stories", "src/types"]
 }
