@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { env } from 'cloudflare:workers';
 import { zValidator } from "@hono/zod-validator";
 import { createOpencodeClient } from "@opencode-ai/sdk/client";
 import { z } from "zod";
@@ -21,14 +22,10 @@ import {
 	AuthSetRequestSchema,
 } from "../types/opencode-schemas";
 
-type Env = {
-	OPENCODE_URL: string;
-};
-
 const app = new Hono<{ Bindings: Env }>();
 
 // Create OpenCode client (URL configured per environment in wrangler.jsonc)
-function getOpencodeClient(env: Env) {
+function getOpencodeClient() {
 	return createOpencodeClient({
 		baseUrl: env.OPENCODE_URL,
 		throwOnError: false,
@@ -134,7 +131,7 @@ function createHandler<T = unknown>(
 	handler: OpencodeHandler<T>
 ) {
 	return async (c: any) => {
-		const client = getOpencodeClient(c.env);
+		const client = getOpencodeClient();
 		const { data, error } = await handler(client, c);
 		if (error) {
 			const statusCode = getErrorStatusCode(error);
@@ -463,18 +460,104 @@ app.post(
 // ========================================
 // Event APIs (SSE)
 // ========================================
-app.get("/api/opencode/events", async (c) => {
-	const client = getOpencodeClient();
-	const result = await client.event.subscribe();
+app.get("/api/opencode/event", async (c) => {
+	try {
+		console.log('[OpenCode SSE] Client connecting to events endpoint');
 
-	// Forward SSE stream
-	return new Response(result.stream as any, {
-		headers: {
-			'Content-Type': 'text/event-stream',
-			'Cache-Control': 'no-cache',
-			'Connection': 'keep-alive',
-		},
-	});
+		const client = getOpencodeClient();
+		const result = await client.event.subscribe();
+
+		console.log('[OpenCode SSE] Subscribe result:', {
+			hasStream: !!result.stream,
+			streamType: typeof result.stream,
+			hasError: !!result.error,
+			error: result.error,
+		});
+
+		// Check if there's an error in the result
+		if (result.error) {
+			console.error('[OpenCode SSE] OpenCode client returned error:', result.error);
+			return new Response(
+				`data: ${JSON.stringify({ error: result.error })}\n\n`,
+				{
+					status: 500,
+					headers: {
+						'Content-Type': 'text/event-stream',
+						'Cache-Control': 'no-cache',
+						'Connection': 'keep-alive',
+					},
+				}
+			);
+		}
+
+		// Check if stream exists
+		if (!result.stream) {
+			console.error('[OpenCode SSE] No stream in result');
+			return new Response(
+				`data: ${JSON.stringify({ error: 'No stream available' })}\n\n`,
+				{
+					status: 500,
+					headers: {
+						'Content-Type': 'text/event-stream',
+						'Cache-Control': 'no-cache',
+						'Connection': 'keep-alive',
+					},
+				}
+			);
+		}
+
+		console.log('[OpenCode SSE] Converting AsyncGenerator to ReadableStream');
+
+		// Convert AsyncGenerator to ReadableStream
+		// The SDK returns an AsyncGenerator, not a ReadableStream
+		// We need to iterate over it and format as SSE
+		const stream = new ReadableStream({
+			async start(controller) {
+				const encoder = new TextEncoder();
+				try {
+					console.log('[OpenCode SSE] Starting stream iteration');
+					for await (const event of result.stream) {
+						console.log('[OpenCode SSE] Received event:', event.type);
+						// Format as SSE: data: {json}\n\n
+						const data = `data: ${JSON.stringify(event)}\n\n`;
+						controller.enqueue(encoder.encode(data));
+					}
+					console.log('[OpenCode SSE] Stream completed');
+					controller.close();
+				} catch (error) {
+					console.error('[OpenCode SSE] Stream error:', error);
+					controller.error(error);
+				}
+			},
+		});
+
+		return new Response(stream, {
+			headers: {
+				'Content-Type': 'text/event-stream',
+				'Cache-Control': 'no-cache',
+				'Connection': 'keep-alive',
+			},
+		});
+	} catch (error) {
+		console.error('[OpenCode SSE] Failed to establish SSE connection:', {
+			error: error instanceof Error ? error.message : String(error),
+			stack: error instanceof Error ? error.stack : undefined,
+			timestamp: new Date().toISOString(),
+		});
+
+		// Return error response for SSE connection failures
+		return new Response(
+			`data: ${JSON.stringify({ error: 'Failed to connect to OpenCode events' })}\n\n`,
+			{
+				status: 500,
+				headers: {
+					'Content-Type': 'text/event-stream',
+					'Cache-Control': 'no-cache',
+					'Connection': 'keep-alive',
+				},
+			}
+		);
+	}
 });
 
 export default app;

@@ -4,6 +4,7 @@
  */
 
 import { useState, useCallback, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Conversation,
   ConversationContent,
@@ -64,7 +65,9 @@ import {
   useProviders,
   useAgents,
   useOpencodeConfig,
+  opencodeKeys,
 } from "@/hooks/use-opencode";
+import { useStreamingUpdates } from "@/hooks/use-streaming-updates";
 import { OpencodeStatus } from "@/components/opencode-status";
 import { SessionDrawer } from "@/components/chat/session-drawer";
 import { Button } from "@/components/ui/button";
@@ -89,6 +92,7 @@ function getToolStatusIcon(status: string) {
 }
 
 export function ChatPage() {
+  const queryClient = useQueryClient();
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>();
   const [input, setInput] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -99,8 +103,12 @@ export function ChatPage() {
   const [selectedAgent, setSelectedAgent] = useState<string | undefined>();
 
   // Queries
-  const { data: sessions = [], isLoading: sessionsLoading } = useSessions();
-  const { data: messagesData = [], isLoading: messagesLoading } = useMessages(currentSessionId);
+  const { data: sessions, isLoading: sessionsLoading } = useSessions();
+  const { data: messagesData, isLoading: messagesLoading } = useMessages(currentSessionId);
+
+  // Provide defaults
+  const sessionsList = sessions ?? [];
+  const messagesList = messagesData ?? [];
   const { data: providersData } = useProviders();
   const { data: agentsData } = useAgents();
   const { data: configData } = useOpencodeConfig();
@@ -110,12 +118,17 @@ export function ChatPage() {
   const sendMessage = useSendMessage();
   const deleteSession = useDeleteSession();
 
+  // Streaming - update messages in real-time via SSE events
+  const { connected: sseConnected, hasExceededRetries } = useStreamingUpdates({
+    sessionId: currentSessionId,
+  });
+
   // Set default session on mount
   useEffect(() => {
-    if (!currentSessionId && sessions.length > 0) {
-      setCurrentSessionId(sessions[0].id);
+    if (!currentSessionId && sessionsList.length > 0) {
+      setCurrentSessionId(sessionsList[0].id);
     }
-  }, [sessions, currentSessionId]);
+  }, [sessionsList, currentSessionId]);
 
   // Set default model
   useEffect(() => {
@@ -145,7 +158,9 @@ export function ChatPage() {
     const session = await createSession.mutateAsync({
       title: "New Conversation",
     });
-    setCurrentSessionId(session.id);
+    if (session) {
+      setCurrentSessionId(session.id);
+    }
     setDrawerOpen(false); // Close drawer on mobile after creating
   }, [createSession]);
 
@@ -157,9 +172,9 @@ export function ChatPage() {
   const handleDeleteSession = useCallback(async (sessionId: string) => {
     await deleteSession.mutateAsync(sessionId);
     if (currentSessionId === sessionId) {
-      setCurrentSessionId(sessions.find(s => s.id !== sessionId)?.id);
+      setCurrentSessionId(sessionsList.find(s => s.id !== sessionId)?.id);
     }
-  }, [deleteSession, currentSessionId, sessions]);
+  }, [deleteSession, currentSessionId, sessionsList]);
 
   const handleSubmit = useCallback(
     async (message: PromptInputMessage) => {
@@ -176,8 +191,12 @@ export function ChatPage() {
         const session = await createSession.mutateAsync({
           title: message.text?.slice(0, 50) || "New Conversation",
         });
-        sessionId = session.id;
-        setCurrentSessionId(session.id);
+        if (session) {
+          sessionId = session.id;
+          setCurrentSessionId(session.id);
+        } else {
+          return; // Failed to create session
+        }
       }
 
       // Build message parts
@@ -201,7 +220,7 @@ export function ChatPage() {
       // Send message
       await sendMessage.mutateAsync({
         sessionId,
-        message: {
+        request: {
           model: selectedModel || {
             providerID: "anthropic",
             modelID: "claude-3-5-sonnet-20241022",
@@ -213,7 +232,7 @@ export function ChatPage() {
 
       setInput("");
     },
-    [currentSessionId, selectedModel, createSession, sendMessage],
+    [currentSessionId, selectedModel, selectedAgent, createSession, sendMessage],
   );
 
   const handleCopy = useCallback((text: string) => {
@@ -232,7 +251,7 @@ export function ChatPage() {
     }))
   ) || [];
 
-  const currentSession = sessions.find((s) => s.id === currentSessionId);
+  const currentSession = sessionsList.find((s) => s.id === currentSessionId);
 
   return (
     <div className="flex h-full w-full flex-col">
@@ -253,7 +272,7 @@ export function ChatPage() {
               {currentSession?.title || "OpenCode Chat"}
             </h1>
             <div className="hidden sm:block">
-              <OpencodeStatus />
+              <OpencodeStatus sseConnected={sseConnected} hasExceededRetries={hasExceededRetries} />
             </div>
           </div>
         </div>
@@ -279,14 +298,15 @@ export function ChatPage() {
       {/* Messages */}
       <Conversation className="flex-1">
         <ConversationContent className="px-2 py-2 sm:px-4 sm:py-3">
-          {messagesData.length === 0 && !isLoading ? (
+          {messagesList.length === 0 && !isLoading ? (
             <ConversationEmptyState
               title="Start a conversation"
               description="Ask OpenCode to help with your code, explain concepts, or make changes to your project"
               icon={<MessageSquareIcon className="size-10 sm:size-12" />}
             />
           ) : (
-            messagesData.map((item) => {
+            <>
+            {messagesList.map((item) => {
               const message = item.info;
               const parts = item.parts;
 
@@ -422,7 +442,8 @@ export function ChatPage() {
                   )}
                 </div>
               );
-            })
+            })}
+            </>
           )}
           {isLoading && <Loader />}
         </ConversationContent>
@@ -483,14 +504,8 @@ export function ChatPage() {
               </PromptInputModelSelect>
             </PromptInputTools>
             <PromptInputSubmit
-              disabled={!input.trim() && !sendMessage.isPending}
-              status={
-                sendMessage.isPending
-                  ? "streaming"
-                  : messagesLoading
-                    ? "submitted"
-                    : "ready"
-              }
+              disabled={!input.trim()}
+              status={sendMessage.isPending ? "submitted" : "ready"}
               className="h-8 w-8 sm:h-9 sm:w-9"
             />
           </PromptInputFooter>
@@ -501,7 +516,7 @@ export function ChatPage() {
       <SessionDrawer
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
-        sessions={sessions}
+        sessions={sessionsList}
         currentSessionId={currentSessionId}
         onSelectSession={handleSelectSession}
         onCreateSession={handleCreateSession}

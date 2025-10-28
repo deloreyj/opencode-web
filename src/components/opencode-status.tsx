@@ -4,9 +4,14 @@
  */
 
 import { useOpencodeConfig } from "@/hooks/use-opencode";
-import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, WifiOff } from "lucide-react";
 
-export function OpencodeStatus() {
+interface OpencodeStatusProps {
+  sseConnected?: boolean;
+  hasExceededRetries?: boolean;
+}
+
+export function OpencodeStatus({ sseConnected, hasExceededRetries }: OpencodeStatusProps = {}) {
   const { data: serverInfo, isLoading, error } = useOpencodeConfig();
 
   if (isLoading) {
@@ -28,13 +33,29 @@ export function OpencodeStatus() {
   }
 
   return (
-    <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
-      <CheckCircle2 className="size-4" />
-      <span>OpenCode connected</span>
-      {serverInfo.model && (
-        <span className="text-muted-foreground text-xs">
-          {serverInfo.model}
-        </span>
+    <div className="flex items-center gap-3 text-sm">
+      <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+        <CheckCircle2 className="size-4" />
+        <span>OpenCode connected</span>
+        {serverInfo.model && (
+          <span className="text-muted-foreground text-xs">
+            {serverInfo.model}
+          </span>
+        )}
+      </div>
+
+      {sseConnected && !hasExceededRetries && (
+        <div className="flex items-center gap-1.5 text-green-600 dark:text-green-400">
+          <div className="size-2 rounded-full bg-current animate-pulse" />
+          <span className="text-xs">Live</span>
+        </div>
+      )}
+
+      {hasExceededRetries && (
+        <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+          <WifiOff className="size-3.5" />
+          <span className="text-xs">Streaming unavailable</span>
+        </div>
       )}
     </div>
   );
