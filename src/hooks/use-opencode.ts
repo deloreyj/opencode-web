@@ -660,3 +660,72 @@ export function usePermissionResponse() {
     },
   });
 }
+
+// ========================================
+// Session Usage Hooks
+// ========================================
+
+export interface SessionUsage {
+  totalCost: number;
+  totalTokens: {
+    input: number;
+    output: number;
+    reasoning: number;
+    cache: {
+      read: number;
+      write: number;
+    };
+  };
+}
+
+/**
+ * Hook to calculate session usage (cost and tokens) from messages
+ * Aggregates data from all assistant messages in the session
+ */
+export function useSessionUsage(sessionId: string | undefined): SessionUsage | null {
+  const { data: messages } = useMessages(sessionId);
+
+  if (!messages || messages.length === 0) {
+    return null;
+  }
+
+  // Aggregate usage from all assistant messages
+  const usage = messages.reduce<SessionUsage>(
+    (acc, msg) => {
+      // Only count assistant messages
+      if (msg.info.role !== "assistant") {
+        return acc;
+      }
+
+      // Assistant messages have cost and tokens
+      const assistantMsg = msg.info;
+
+      return {
+        totalCost: acc.totalCost + (assistantMsg.cost || 0),
+        totalTokens: {
+          input: acc.totalTokens.input + (assistantMsg.tokens?.input || 0),
+          output: acc.totalTokens.output + (assistantMsg.tokens?.output || 0),
+          reasoning: acc.totalTokens.reasoning + (assistantMsg.tokens?.reasoning || 0),
+          cache: {
+            read: acc.totalTokens.cache.read + (assistantMsg.tokens?.cache?.read || 0),
+            write: acc.totalTokens.cache.write + (assistantMsg.tokens?.cache?.write || 0),
+          },
+        },
+      };
+    },
+    {
+      totalCost: 0,
+      totalTokens: {
+        input: 0,
+        output: 0,
+        reasoning: 0,
+        cache: {
+          read: 0,
+          write: 0,
+        },
+      },
+    }
+  );
+
+  return usage;
+}

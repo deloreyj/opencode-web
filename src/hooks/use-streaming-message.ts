@@ -8,9 +8,9 @@ import { useOpencodeEvents } from "./use-opencode-events";
 import {
   getMessageInfo,
   getPartInfo,
-  isAssistantMessage,
 } from "./opencode-event-utils";
 import type { OpencodeEvent } from "@/types/opencode-events";
+import { isAssistantMessage } from "@/types/opencode-messages";
 
 export interface StreamingMessage {
   id: string;
@@ -46,7 +46,7 @@ export function useStreamingMessage(
           if (!message) return;
 
           // Only track assistant messages for streaming
-          if (isAssistantMessage(message.role)) {
+          if (isAssistantMessage(message)) {
             setStreamingMessage((prev) => {
               // If we already have this message, keep it
               if (prev?.id === message.id) return prev;

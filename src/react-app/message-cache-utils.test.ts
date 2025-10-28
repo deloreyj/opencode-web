@@ -17,10 +17,19 @@ import type { Message, Part } from "@opencode-ai/sdk/client";
 
 // Helper to create mock messages
 function createMockMessage(id: string, role: "user" | "assistant" = "assistant"): Message {
+  if (role === "user") {
+    return {
+      id,
+      sessionID: "ses_123",
+      role: "user",
+      time: { created: Date.now() },
+    };
+  }
+
   return {
     id,
     sessionID: "ses_123",
-    role,
+    role: "assistant",
     time: { created: Date.now() },
     system: [],
     parentID: "",
@@ -29,9 +38,13 @@ function createMockMessage(id: string, role: "user" | "assistant" = "assistant")
     mode: "primary",
     path: { cwd: "/", root: "/" },
     cost: 0,
-    tokens: { input: 0, output: 0 },
-    parts: [],
-  } as Message;
+    tokens: {
+      input: 0,
+      output: 0,
+      reasoning: 0,
+      cache: { read: 0, write: 0 }
+    },
+  };
 }
 
 // Helper to create mock text part
@@ -90,7 +103,10 @@ describe("message-cache-utils", () => {
       const result = upsertMessage(messages, updatedMessage);
 
       expect(result).toHaveLength(1);
-      expect(result[0].info.cost).toBe(100);
+      expect(result[0].info.role).toBe("assistant");
+      if (result[0].info.role === "assistant") {
+        expect(result[0].info.cost).toBe(100);
+      }
     });
 
     it("should not mutate original array", () => {

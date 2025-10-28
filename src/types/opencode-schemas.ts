@@ -21,6 +21,8 @@ import type {
 	SessionRevertData,
 	PostSessionIdPermissionsPermissionIdData,
 	Auth,
+	UserMessage,
+	AssistantMessage
 } from "@opencode-ai/sdk/client";
 
 // Base types checked against SDK
@@ -46,11 +48,58 @@ export const PartSchema = z.discriminatedUnion("type", [
 	}),
 ]);
 
-export const MessageInfoSchema = z.object({
+// User message schema
+export const UserMessageSchema = z.object({
 	id: z.string(),
-	role: z.enum(["user", "assistant"]),
-	createdAt: z.string(),
-});
+	sessionID: z.string(),
+	role: z.literal("user"),
+	time: z.object({
+		created: z.number(),
+	}),
+	summary: z.object({
+		title: z.string().optional(),
+		body: z.string().optional(),
+		diffs: z.array(z.any()),
+	}).optional(),
+}) satisfies z.ZodType<UserMessage>;
+
+// Assistant message schema
+export const AssistantMessageSchema = z.object({
+	id: z.string(),
+	sessionID: z.string(),
+	role: z.literal("assistant"),
+	time: z.object({
+		created: z.number(),
+		completed: z.number().optional(),
+	}),
+	error: z.any().optional(),
+	system: z.array(z.string()),
+	parentID: z.string(),
+	modelID: z.string(),
+	providerID: z.string(),
+	mode: z.string(),
+	path: z.object({
+		cwd: z.string(),
+		root: z.string(),
+	}),
+	summary: z.boolean().optional(),
+	cost: z.number(),
+	tokens: z.object({
+		input: z.number(),
+		output: z.number(),
+		reasoning: z.number(),
+		cache: z.object({
+			read: z.number(),
+			write: z.number(),
+		}),
+	}),
+}) satisfies z.ZodType<AssistantMessage>;
+
+// Discriminated union of message types
+export const MessageSchema = z.discriminatedUnion("role", [
+	UserMessageSchema,
+	AssistantMessageSchema,
+]);
 
 export const SessionSchema: z.ZodType<OpencodeSession> = z.object({
 	id: z.string(),
@@ -268,7 +317,7 @@ export const ProvidersResponseSchema = z.object({
 });
 
 export const MessageResponseSchema = z.object({
-	info: MessageInfoSchema,
+	info: MessageSchema,
 	parts: z.array(z.any()), // Parts can have complex structure
 });
 
@@ -295,7 +344,7 @@ export const FileReadResponseSchema = z.object({
 // Inferred types
 export type Model = z.infer<typeof ModelSchema>;
 export type Part = z.infer<typeof PartSchema>;
-export type MessageInfo = z.infer<typeof MessageInfoSchema>;
+export type MessageInfo = z.infer<typeof MessageSchema>;
 export type Session = z.infer<typeof SessionSchema>;
 export type Agent = z.infer<typeof AgentSchema>;
 export type Provider = z.infer<typeof ProviderSchema>;

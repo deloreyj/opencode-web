@@ -11,7 +11,7 @@ import type {
   EventSessionIdle,
   EventSessionError,
 } from "@/types/opencode-events";
-import type { Message, Part } from "@opencode-ai/sdk/client";
+import type { EventSessionUpdated, Message, Part } from "@opencode-ai/sdk/client";
 
 /**
  * Type guard for message.updated event
@@ -59,6 +59,15 @@ export function isSessionErrorEvent(
 }
 
 /**
+ * Type guard for session.updated event
+ */
+export function isSessionUpdatedEvent(
+  event: OpencodeEvent
+): event is EventSessionUpdated {
+  return event.type === "session.updated";
+}
+
+/**
  * Extract sessionID from an event
  * Events may have sessionID in different locations depending on type
  */
@@ -67,7 +76,10 @@ export function getEventSessionId(event: OpencodeEvent): string | undefined {
     return event.properties.info.sessionID;
   }
   if (isMessagePartUpdatedEvent(event)) {
-    return event.properties.part.messageID; // Parts reference message, message has session
+    return event.properties.part.sessionID;
+  }
+  if (isSessionUpdatedEvent(event)) {
+    return event.properties.info.id;
   }
   // For other events, check if they have sessionID in properties
   if ("sessionID" in event.properties) {

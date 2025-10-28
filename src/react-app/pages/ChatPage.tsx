@@ -4,7 +4,6 @@
  */
 
 import { useState, useCallback, useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import {
   Conversation,
   ConversationContent,
@@ -65,9 +64,11 @@ import {
   useProviders,
   useAgents,
   useOpencodeConfig,
-  opencodeKeys,
+  useSessionUsage,
 } from "@/hooks/use-opencode";
 import { useStreamingUpdates } from "@/hooks/use-streaming-updates";
+import { getMessageText, hasTextContent } from "@/lib/message-cache-utils";
+import type { MessageWithParts } from "@/types/opencode-messages";
 import { OpencodeStatus } from "@/components/opencode-status";
 import { SessionDrawer } from "@/components/chat/session-drawer";
 import { Button } from "@/components/ui/button";
@@ -92,7 +93,6 @@ function getToolStatusIcon(status: string) {
 }
 
 export function ChatPage() {
-  const queryClient = useQueryClient();
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>();
   const [input, setInput] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -109,6 +109,7 @@ export function ChatPage() {
   // Provide defaults
   const sessionsList = sessions ?? [];
   const messagesList = messagesData ?? [];
+
   const { data: providersData } = useProviders();
   const { data: agentsData } = useAgents();
   const { data: configData } = useOpencodeConfig();
@@ -122,6 +123,9 @@ export function ChatPage() {
   const { connected: sseConnected, hasExceededRetries } = useStreamingUpdates({
     sessionId: currentSessionId,
   });
+
+  // Session usage tracking
+  const sessionUsage = useSessionUsage(currentSessionId);
 
   // Set default session on mount
   useEffect(() => {
@@ -272,7 +276,11 @@ export function ChatPage() {
               {currentSession?.title || "OpenCode Chat"}
             </h1>
             <div className="hidden sm:block">
-              <OpencodeStatus sseConnected={sseConnected} hasExceededRetries={hasExceededRetries} />
+              <OpencodeStatus 
+                sseConnected={sseConnected} 
+                hasExceededRetries={hasExceededRetries}
+                sessionUsage={sessionUsage}
+              />
             </div>
           </div>
         </div>
@@ -292,7 +300,11 @@ export function ChatPage() {
 
       {/* Mobile Status Bar */}
       <div className="border-b bg-card px-3 py-2 sm:hidden">
-        <OpencodeStatus />
+        <OpencodeStatus 
+          sseConnected={sseConnected} 
+          hasExceededRetries={hasExceededRetries}
+          sessionUsage={sessionUsage}
+        />
       </div>
 
       {/* Messages */}
@@ -306,9 +318,10 @@ export function ChatPage() {
             />
           ) : (
             <>
-            {messagesList.map((item) => {
+            {messagesList.map((item: MessageWithParts) => {
               const message = item.info;
               const parts = item.parts;
+
 
               // Extract sources from parts
               const sources = parts
@@ -395,27 +408,26 @@ export function ChatPage() {
                   )}
 
                   {/* Message */}
-                  <Message from={message.role}>
-                    <MessageContent>
-                      <Response>
-                        {parts
-                          .filter((p) => p.type === "text")
-                          .map((p: any) => p.text)
-                          .join("\n\n")}
-                      </Response>
-                    </MessageContent>
-                    <MessageAvatar
-                      src={
-                        message.role === "user"
-                          ? `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(configData?.username || "You")}`
-                          : "https://github.com/cloudflare.png"
-                      }
-                      name={message.role === "user" ? (configData?.username || "You") : "OpenCode"}
-                    />
-                  </Message>
+                  {hasTextContent(item) && (
+                    <Message from={message.role}>
+                      <MessageContent>
+                        <Response>
+                          {getMessageText(item).join("\n\n")}
+                        </Response>
+                      </MessageContent>
+                      <MessageAvatar
+                        src={
+                          message.role === "user"
+                            ? `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(configData?.username || "You")}`
+                            : "https://github.com/cloudflare.png"
+                        }
+                        name={message.role === "user" ? (configData?.username || "You") : "OpenCode"}
+                      />
+                    </Message>
+                  )}
 
                   {/* Actions for assistant messages */}
-                  {message.role === "assistant" && (
+                  {message.role === "assistant" && hasTextContent(item) && (
                     <Actions className="mt-1.5">
                       <Action
                         onClick={() =>

@@ -28,19 +28,20 @@ describe("opencode-event-utils", () => {
       expect(getEventSessionId(event)).toBe("ses_123");
     });
 
-    it("should extract sessionID from properties.part via messageID", () => {
+    it("should extract sessionID from properties.part.sessionID", () => {
       const event = {
         type: "message.part.updated",
         properties: {
           part: {
+            sessionID: "ses_123",
             messageID: "msg_123",
             id: "prt_789",
           },
         },
       } as any;
 
-      // Part events return messageID (not sessionID directly)
-      expect(getEventSessionId(event)).toBe("msg_123");
+      // Part events have sessionID directly on the part
+      expect(getEventSessionId(event)).toBe("ses_123");
     });
 
     it("should extract sessionID from properties", () => {

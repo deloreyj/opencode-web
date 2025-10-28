@@ -17,6 +17,7 @@ import type {
 /**
  * Message with parts structure returned by the API
  * Matches the SessionMessagesResponses 200 response type
+ * Uses full SDK Message type which includes cost/tokens for assistant messages
  */
 export interface MessageWithParts {
   info: Message;
