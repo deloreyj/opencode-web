@@ -5,7 +5,7 @@
 
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { PlusIcon, MessageSquareIcon, Loader2 } from "lucide-react";
+import { PlusIcon, MessageSquareIcon, Loader2, Trash2Icon } from "lucide-react";
 import type { Session } from "@/lib/opencode-client";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +14,7 @@ interface SessionSidebarProps {
   currentSessionId?: string;
   onSelectSession: (sessionId: string) => void;
   onCreateSession: () => void;
+  onDeleteSession: (sessionId: string) => void;
   isLoading?: boolean;
 }
 
@@ -22,6 +23,7 @@ export function SessionSidebar({
   currentSessionId,
   onSelectSession,
   onCreateSession,
+  onDeleteSession,
   isLoading,
 }: SessionSidebarProps) {
   return (
@@ -58,22 +60,38 @@ export function SessionSidebar({
             </div>
           ) : (
             sessions.map((session) => (
-              <button
+              <div
                 key={session.id}
-                onClick={() => onSelectSession(session.id)}
                 className={cn(
-                  "flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-accent",
+                  "group flex w-full items-start gap-2 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-accent",
                   currentSessionId === session.id && "bg-accent"
                 )}
               >
-                <MessageSquareIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                <div className="flex-1 overflow-hidden">
-                  <p className="truncate font-medium">{session.title}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {new Date(session.time.created).toLocaleDateString()}
-                  </p>
-                </div>
-              </button>
+                <button
+                  onClick={() => onSelectSession(session.id)}
+                  className="flex flex-1 items-start gap-3 text-left"
+                >
+                  <MessageSquareIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                  <div className="flex-1 overflow-hidden">
+                    <p className="truncate font-medium">{session.title}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {new Date(session.time.created).toLocaleDateString()}
+                    </p>
+                  </div>
+                </button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-6 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteSession(session.id);
+                  }}
+                >
+                  <Trash2Icon className="size-3 text-destructive" />
+                  <span className="sr-only">Delete conversation</span>
+                </Button>
+              </div>
             ))
           )}
         </div>
