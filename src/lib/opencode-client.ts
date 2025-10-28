@@ -75,9 +75,6 @@ export type {
   FileReadRequest,
   FileStatusRequest,
   AuthSetRequest,
-  TuiAppendPromptRequest,
-  TuiExecuteCommandRequest,
-  TuiShowToastRequest,
   ProvidersResponse,
   MessageResponse,
   MessagesResponse,
@@ -341,60 +338,6 @@ export const opencodeClient = {
         body: JSON.stringify(query || {}),
       });
       return unwrapResponse<FileStatus[]>(response);
-    },
-  },
-
-  // ========================================
-  // TUI APIs
-  // ========================================
-  tui: {
-    async appendPrompt({ body }: { body: TuiAppendPromptRequest }) {
-      const response = await fetch("/api/opencode/tui/appendPrompt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      return unwrapResponse<boolean>(response);
-    },
-    async openHelp() {
-      const response = await fetch("/api/opencode/tui/openHelp", { method: "POST" });
-      return unwrapResponse<boolean>(response);
-    },
-    async openSessions() {
-      const response = await fetch("/api/opencode/tui/openSessions", { method: "POST" });
-      return unwrapResponse<boolean>(response);
-    },
-    async openThemes() {
-      const response = await fetch("/api/opencode/tui/openThemes", { method: "POST" });
-      return unwrapResponse<boolean>(response);
-    },
-    async openModels() {
-      const response = await fetch("/api/opencode/tui/openModels", { method: "POST" });
-      return unwrapResponse<boolean>(response);
-    },
-    async submitPrompt() {
-      const response = await fetch("/api/opencode/tui/submitPrompt", { method: "POST" });
-      return unwrapResponse<boolean>(response);
-    },
-    async clearPrompt() {
-      const response = await fetch("/api/opencode/tui/clearPrompt", { method: "POST" });
-      return unwrapResponse<boolean>(response);
-    },
-    async executeCommand({ body }: { body: TuiExecuteCommandRequest }) {
-      const response = await fetch("/api/opencode/tui/executeCommand", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      return unwrapResponse<boolean>(response);
-    },
-    async showToast({ body }: { body: TuiShowToastRequest }) {
-      const response = await fetch("/api/opencode/tui/showToast", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      return unwrapResponse<boolean>(response);
     },
   },
 

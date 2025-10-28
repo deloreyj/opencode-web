@@ -1,90 +1,140 @@
-# Full-Stack Worker App Boilerplate
+# OpenCode Web
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/deloreyj/worker-app-boilerplate/tree/main)
+A modern web interface for [OpenCode](https://opencode.ai) - an AI coding assistant that runs locally. Built with React 19, deployed to Cloudflare Workers edge network.
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/deloreyj/opencode-web/tree/main)
+
+## 🎯 What is This?
+
+**OpenCode Web** is a chat-based web UI for interacting with OpenCode, providing:
+
+- 💬 **Real-time streaming responses** via Server-Sent Events (SSE)
+- 🔄 **Live message updates** as the AI types
+- 🎨 **Rich message rendering** with markdown, code blocks, reasoning, and tool calls
+- 📱 **Mobile-first responsive design** with drawer navigation
+- 🌓 **Dark mode support** with system preference detection
+- 🔌 **Direct connection** to your local OpenCode server
+
+The app connects to OpenCode running on your machine and provides a polished chat interface for code assistance, file editing, and project management.
 
 ## 🚀 Technology Stack
 
 ### Frontend
 - [**React 19**](https://react.dev/) - Modern UI library with cutting-edge features
 - [**Vite**](https://vite.dev/) - Lightning-fast build tooling and dev server
+- [**TanStack Query**](https://tanstack.com/query) - Powerful data fetching and caching
 - [**Tailwind CSS v4**](https://tailwindcss.com/) - Utility-first CSS framework
 - [**shadcn/ui**](https://ui.shadcn.com/) - High-quality, accessible component library
+- [**AI Elements**](https://www.aielements.com/) - Pre-built AI chat UI components
 - [**Storybook 9**](https://storybook.js.org/) - Component development and documentation
 
 ### Backend
 - [**Hono**](https://hono.dev/) - Ultralight, modern backend framework
 - [**Cloudflare Workers**](https://developers.cloudflare.com/workers/) - Edge computing platform for global deployment
+- [**OpenCode SDK**](https://opencode.ai) - Official TypeScript SDK for OpenCode API
 
-### Testing & Quality
-- [**Vitest**](https://vitest.dev/) - Fast unit test framework (3 separate test suites)
-- [**Playwright**](https://playwright.dev/) - Reliable end-to-end testing via Storybook
-- **TypeScript** - Full type safety across frontend and backend
-- **ESLint** - Code quality and consistency
+### Real-time & State Management
+- **Server-Sent Events (SSE)** - Real-time message streaming from OpenCode
+- **React Query Cache** - In-place message updates for instant UI feedback
+- **Type-safe event handling** - Fully typed SSE events from OpenCode SDK
 
 ## ✨ Key Features
 
-- 🔥 Hot Module Replacement (HMR) for rapid development
-- 🎨 Component-driven development with Storybook
-- 📦 Full TypeScript support with shared types
-- 🧪 Comprehensive testing: unit, integration, and visual tests
-- 🎯 API routes with Hono's elegant routing
-- 🔄 Dual-context build system (frontend + backend)
-- ⚡ Zero-config deployment to Cloudflare's global network
-- 🔎 Built-in observability to monitor your Worker
-- 🌓 Dark mode support out of the box
-- ♿ Accessible components from shadcn/ui + Radix UI
+### Chat Interface
+- 💬 **Real-time streaming** - Messages appear as they're generated
+- 🔄 **Live updates** - Text updates in-place as AI types (no waiting for completion)
+- 📝 **Rich formatting** - Markdown, code blocks, syntax highlighting
+- 🧠 **Reasoning display** - See the AI's thought process
+- 🔧 **Tool call visualization** - View file reads, edits, and bash commands
+- 📎 **File attachments** - Attach files to your messages
+- 🎯 **Agent selection** - Switch between different AI agents
+- 🤖 **Model selection** - Choose from available AI models
+
+### Developer Experience
+- 🔥 **Hot Module Replacement** - Instant updates during development
+- 🎨 **Component-driven** - Storybook for isolated component development
+- 📦 **Type-safe** - Full TypeScript with OpenCode SDK types
+- 🧪 **Well-tested** - 41 passing tests covering critical paths
+- 🔄 **Pure functions** - Testable, composable utility functions
+- 🎯 **Type guards** - No `any` types, full type inference
+
+### Production Ready
+- ⚡ **Edge deployment** - Deploy to Cloudflare's global network
+- 🌍 **Low latency** - Serve from 300+ cities worldwide
+- 🔒 **Secure** - Runs on Cloudflare Workers runtime
+- 📊 **Observable** - Built-in monitoring and analytics
+- 🚀 **Zero-config** - Simple one-command deployment
 
 ## 📐 Architecture
 
-This project uses a **dual-context build system** with three separate TypeScript contexts:
+### Dual-Context Build System
 
-1. **React App** (`src/react-app/`) - Client-side React application
-2. **Worker** (`src/worker/`) - Cloudflare Workers backend (Hono API)
-3. **Shared Code** (`src/components/`, `src/lib/`, `src/hooks/`) - Reusable UI components and utilities
+Three separate TypeScript contexts:
 
-The Worker serves the React app as static assets and handles API routes under `/api/*`.
+1. **React App** (`src/react-app/`) - Client-side chat interface
+2. **Worker** (`src/worker/`) - Cloudflare Workers backend (Hono API + SSE proxy)
+3. **Shared Code** (`src/components/`, `src/lib/`, `src/hooks/`) - Reusable UI and utilities
 
-**Path Aliases**: All imports use `@/*` aliases pointing to `src/`:
-```typescript
-import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
+The Worker serves the React app as static assets and proxies API requests to your local OpenCode server.
+
+### Real-time Streaming Architecture
+
+```
+OpenCode Server → Worker (SSE Proxy) → Browser (EventSource) → React Query Cache → UI
 ```
 
-For detailed architecture documentation, see [CLAUDE.md](./CLAUDE.md) and [AGENTS.md](./AGENTS.md).
+1. **OpenCode emits events** - `message.updated`, `message.part.updated`, `session.idle`
+2. **Worker proxies SSE** - Forwards events from OpenCode to browser
+3. **Browser receives events** - `useOpencodeEvents` hook manages EventSource connection
+4. **Cache updates in-place** - Pure functions update React Query cache directly
+5. **UI re-renders** - React automatically updates when cache changes
 
-<!-- dash-content-end -->
+### Type Safety
+
+All types derived from OpenCode SDK:
+- `Message`, `Part`, `Event` types from `@opencode-ai/sdk/client`
+- Custom `MessageWithParts` interface matching API responses
+- Type guards for safe event handling: `isMessageUpdatedEvent`, `isTextPart`, etc.
+- Zero `any` types in production code
+
+**Path Aliases**: All imports use `@/*` → `src/`:
+```typescript
+import { Button } from "@/components/ui/button"
+import { useOpencodeEvents } from "@/hooks/use-opencode-events"
+import { upsertMessage } from "@/lib/message-cache-utils"
+```
 
 ## Getting Started
 
 ### Prerequisites
 
-This project uses **pnpm** as the package manager. Install it globally if you haven't already:
-
-```bash
-npm install -g pnpm
-```
+1. **OpenCode** - Install and run OpenCode locally: [opencode.ai](https://opencode.ai)
+2. **pnpm** - Package manager:
+   ```bash
+   npm install -g pnpm
+   ```
 
 ### Installation
-
-Install dependencies:
 
 ```bash
 pnpm install
 ```
 
-## Development
+### Development
 
-### Primary Workflows
-
-Start the main development server (frontend + backend):
+Start the development server:
 
 ```bash
 pnpm dev
 ```
 
-Your application will be available at [http://localhost:5173](http://localhost:5173).
+Your app will be available at [http://localhost:5173](http://localhost:5173).
 
-Start Storybook for component development:
+**Make sure OpenCode is running** on `localhost:3000` (or configure the proxy in `vite.config.ts`).
+
+### Component Development
+
+Start Storybook for isolated component development:
 
 ```bash
 pnpm storybook
@@ -92,121 +142,110 @@ pnpm storybook
 
 Storybook will be available at [http://localhost:6006](http://localhost:6006).
 
-### Code Quality
+## Project Structure
 
-Type check your code:
-
-```bash
-pnpm check
+```
+src/
+├── react-app/          # React application entry and pages
+│   ├── pages/          # Page components (ChatPage, etc.)
+│   └── *.test.ts       # Test files
+├── components/         # Reusable UI components
+│   ├── ui/             # shadcn/ui components
+│   ├── ai-elements/    # AI chat UI components
+│   └── chat/           # Chat-specific components
+├── hooks/              # React hooks
+│   ├── use-opencode.ts              # API queries and mutations
+│   ├── use-opencode-events.ts       # SSE connection management
+│   ├── use-streaming-updates.ts     # Real-time cache updates
+│   └── opencode-event-utils.ts      # Event parsing utilities
+├── lib/                # Utility functions
+│   └── message-cache-utils.ts       # Pure cache update functions
+├── types/              # TypeScript types
+│   ├── opencode-events.ts           # SSE event types
+│   ├── opencode-messages.ts         # Message types
+│   └── opencode-schemas.ts          # Zod schemas
+├── worker/             # Cloudflare Workers backend
+│   └── index.ts        # Hono API + SSE proxy
+└── stories/            # Storybook stories
 ```
 
-Lint your code:
-
-```bash
-pnpm lint
-```
+## Code Quality
 
 ### Testing
 
-Run all tests (builds first, then runs all 3 test suites):
-
+Run all tests:
 ```bash
 pnpm test
 ```
 
 Run individual test suites:
-
 ```bash
 pnpm test:worker     # Backend/API tests
-pnpm test:ui         # React component unit tests
+pnpm test:ui         # React component unit tests (41 tests)
 pnpm test:storybook  # Storybook visual/interaction tests
 ```
 
-## Component Development
-
-This project follows a systematic component-driven development workflow:
-
-1. **Check existing components** - Review component files and Storybook stories
-2. **Compose or extend** - Build from existing components or add variants
-3. **Search shadcn registry** - Find pre-built components if needed
-4. **Add tests and stories** - Always update Storybook and add tests
-
-Add new shadcn/ui components:
+### Type Checking
 
 ```bash
-pnpm dlx shadcn@latest add <component-name>
+pnpm check
 ```
 
-Components are installed to `src/components/ui/` and can be customized directly.
+Runs TypeScript compiler in dry-run mode across all contexts.
 
-For detailed workflow, see [CLAUDE.md](./CLAUDE.md#component-development).
+### Linting
 
-## Production
+```bash
+pnpm lint
+```
 
-Build your project for production:
+## Component Development Workflow
 
+1. **Check existing components** - Review `src/components/` and Storybook
+2. **Search AI Elements** - Check [aielements.com](https://www.aielements.com/) for chat UI components
+3. **Search shadcn/ui** - Check [ui.shadcn.com](https://ui.shadcn.com/) for general components
+4. **Add component**:
+   ```bash
+   pnpm dlx shadcn@latest add <component>
+   pnpm dlx ai-elements@latest add <component>
+   ```
+5. **Create story** - Always add Storybook story for new components
+6. **Write tests** - Add tests to `src/react-app/`
+7. **Run tests** - `pnpm test:ui` and `pnpm test:storybook`
+
+## Production Deployment
+
+Build for production:
 ```bash
 pnpm build
 ```
 
-Preview your build locally:
-
+Preview locally:
 ```bash
 pnpm preview
 ```
 
 Deploy to Cloudflare Workers:
-
 ```bash
 pnpm deploy
 ```
 
-Monitor your deployed worker:
-
+Monitor your worker:
 ```bash
 npx wrangler tail
 ```
 
-## Project Documentation
-
-- [CLAUDE.md](./CLAUDE.md) - Detailed guide for Claude Code AI assistant
-- [AGENTS.md](./AGENTS.md) - General AI coding assistant guide
-
-## Additional Resources
-
-### Framework & Libraries
-- [React Documentation](https://react.dev/)
-- [Vite Documentation](https://vite.dev/guide/)
-- [Hono Documentation](https://hono.dev/)
-- [Tailwind CSS Documentation](https://tailwindcss.com/docs)
-- [shadcn/ui Documentation](https://ui.shadcn.com/)
-- [Storybook Documentation](https://storybook.js.org/docs)
-- [Vitest Documentation](https://vitest.dev/)
-
-### Cloudflare Platform
-- [Cloudflare Workers Documentation](https://developers.cloudflare.com/workers/)
-- [Workers Assets Documentation](https://developers.cloudflare.com/workers/static-assets/)
-- [Wrangler CLI Documentation](https://developers.cloudflare.com/workers/wrangler/)
-
 ## Environment Configuration
 
-This project uses environment-specific configurations in `wrangler.jsonc`:
+Configure in `wrangler.jsonc`:
 
-- **Staging**: `pnpm deploy` (defaults to staging environment)
-- **Production**: Requires explicit configuration and verification
-
-All Wrangler commands should be scoped to an environment (typically `staging`).
-
-## Contributing
-
-When contributing to this project:
-
-1. Follow the component development workflow outlined in [CLAUDE.md](./CLAUDE.md)
-2. Always add Storybook stories for UI components
-3. Write tests for new features
-4. Run `pnpm check` and `pnpm lint` before committing
-5. Ensure all tests pass with `pnpm test`
-
-## License
-
-See [LICENSE](./LICENSE) file for details.
+```jsonc
+{
+  "name": "opencode-web",
+  "compatibility_date": "2024-01-01",
+  "main": "src/worker/index.ts",
+  "assets": {
+    "directory": "dist/client"
+  }
+}
+```

@@ -467,29 +467,6 @@ app.get("/api/opencode/event", async (c) => {
 		const client = getOpencodeClient();
 		const result = await client.event.subscribe();
 
-		console.log('[OpenCode SSE] Subscribe result:', {
-			hasStream: !!result.stream,
-			streamType: typeof result.stream,
-			hasError: !!result.error,
-			error: result.error,
-		});
-
-		// Check if there's an error in the result
-		if (result.error) {
-			console.error('[OpenCode SSE] OpenCode client returned error:', result.error);
-			return new Response(
-				`data: ${JSON.stringify({ error: result.error })}\n\n`,
-				{
-					status: 500,
-					headers: {
-						'Content-Type': 'text/event-stream',
-						'Cache-Control': 'no-cache',
-						'Connection': 'keep-alive',
-					},
-				}
-			);
-		}
-
 		// Check if stream exists
 		if (!result.stream) {
 			console.error('[OpenCode SSE] No stream in result');
