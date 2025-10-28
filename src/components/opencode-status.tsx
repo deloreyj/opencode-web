@@ -3,11 +3,11 @@
  * Displays connection status and server info
  */
 
-import { useServerInfo } from "@/hooks/use-opencode";
+import { useOpencodeConfig } from "@/hooks/use-opencode";
 import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
 
 export function OpencodeStatus() {
-  const { data: serverInfo, isLoading, error } = useServerInfo();
+  const { data: serverInfo, isLoading, error } = useOpencodeConfig();
 
   if (isLoading) {
     return (

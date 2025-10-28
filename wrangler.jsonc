@@ -52,9 +52,20 @@
 		"directory": "./dist/client",
 		"not_found_handling": "single-page-application"
 	},
+	"vars": {
+		"OPENCODE_URL": "http://127.0.0.1:4096"
+	},
 	"env": {
-		"staging": {},
-		"production": {}
+		"staging": {
+			"vars": {
+				"OPENCODE_URL": "http://opencode-staging:4096"
+			}
+		},
+		"production": {
+			"vars": {
+				"OPENCODE_URL": "http://opencode-production:4096"
+			}
+		}
 	}
 	/**
 		 * Smart Placement

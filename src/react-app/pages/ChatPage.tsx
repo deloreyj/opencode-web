@@ -63,6 +63,7 @@ import {
   useDeleteSession,
   useProviders,
   useAgents,
+  useOpencodeConfig,
 } from "@/hooks/use-opencode";
 import { OpencodeStatus } from "@/components/opencode-status";
 import { SessionDrawer } from "@/components/chat/session-drawer";
@@ -102,6 +103,7 @@ export function ChatPage() {
   const { data: messagesData = [], isLoading: messagesLoading } = useMessages(currentSessionId);
   const { data: providersData } = useProviders();
   const { data: agentsData } = useAgents();
+  const { data: configData } = useOpencodeConfig();
 
   // Mutations
   const createSession = useCreateSession();
@@ -385,10 +387,10 @@ export function ChatPage() {
                     <MessageAvatar
                       src={
                         message.role === "user"
-                          ? "https://github.com/shadcn.png"
+                          ? `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(configData?.username || "You")}`
                           : "https://github.com/cloudflare.png"
                       }
-                      name={message.role === "user" ? "You" : "OpenCode"}
+                      name={message.role === "user" ? (configData?.username || "You") : "OpenCode"}
                     />
                   </Message>
 
