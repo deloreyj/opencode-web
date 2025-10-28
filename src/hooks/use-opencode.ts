@@ -182,3 +182,18 @@ export function useProviders() {
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
+
+/**
+ * Hook to get available agents
+ */
+export function useAgents() {
+  return useQuery({
+    queryKey: [...opencodeKeys.all, "agents"] as const,
+    queryFn: async () => {
+      const { data, error } = await opencodeClient.app.agents();
+      if (error) throw error;
+      return data;
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}

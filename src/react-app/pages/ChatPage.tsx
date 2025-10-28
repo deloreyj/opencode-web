@@ -62,11 +62,13 @@ import {
   useSendMessage,
   useDeleteSession,
   useProviders,
+  useAgents,
 } from "@/hooks/use-opencode";
 import { OpencodeStatus } from "@/components/opencode-status";
 import { SessionDrawer } from "@/components/chat/session-drawer";
 import { Button } from "@/components/ui/button";
 import { ModeToggle } from "@/components/mode-toggle";
+import { AgentModeToggle } from "@/components/agent-mode-toggle";
 import { getToolContent } from "@/components/chat/tool-contents";
 
 /**
@@ -93,11 +95,13 @@ export function ChatPage() {
     providerID: string;
     modelID: string;
   } | null>(null);
+  const [selectedAgent, setSelectedAgent] = useState<string | undefined>();
 
   // Queries
   const { data: sessions = [], isLoading: sessionsLoading } = useSessions();
   const { data: messagesData = [], isLoading: messagesLoading } = useMessages(currentSessionId);
   const { data: providersData } = useProviders();
+  const { data: agentsData } = useAgents();
 
   // Mutations
   const createSession = useCreateSession();
@@ -124,6 +128,16 @@ export function ChatPage() {
       }
     }
   }, [providersData, selectedModel]);
+
+  // Set default agent
+  useEffect(() => {
+    if (!selectedAgent && agentsData) {
+      const primaryAgents = agentsData.filter((agent) => agent.mode === "primary" || agent.mode === "all");
+      if (primaryAgents.length > 0) {
+        setSelectedAgent(primaryAgents[0].name);
+      }
+    }
+  }, [agentsData, selectedAgent]);
 
   const handleCreateSession = useCallback(async () => {
     const session = await createSession.mutateAsync({
@@ -190,6 +204,7 @@ export function ChatPage() {
             providerID: "anthropic",
             modelID: "claude-3-5-sonnet-20241022",
           },
+          agent: selectedAgent,
           parts,
         },
       });
@@ -332,19 +347,21 @@ export function ChatPage() {
                         return (
                           <Tool key={toolPart.id}>
                             <CollapsibleTrigger className="flex w-full items-center justify-between gap-4 p-3">
-                              <div className="flex items-center gap-2">
-                                <WrenchIcon className="size-4 text-muted-foreground" />
+                              <div className="flex min-w-0 flex-1 items-center gap-2">
+                                <WrenchIcon className="size-4 shrink-0 text-muted-foreground" />
                                 <span className="font-medium text-sm">
                                   {toolName}
                                 </span>
                                 {description && (
-                                  <span className="text-muted-foreground text-xs">
+                                  <span className="min-w-0 truncate text-muted-foreground text-xs">
                                     {description}
                                   </span>
                                 )}
-                                {getToolStatusIcon(state.status)}
+                                <span className="shrink-0">
+                                  {getToolStatusIcon(state.status)}
+                                </span>
                               </div>
-                              <ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+                              <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
                             </CollapsibleTrigger>
                             <ToolContent>
                               {getToolContent(toolName, state)}
@@ -432,6 +449,11 @@ export function ChatPage() {
                   <PromptInputActionAddAttachments />
                 </PromptInputActionMenuContent>
               </PromptInputActionMenu>
+              <AgentModeToggle 
+                selectedAgent={selectedAgent}
+                onAgentChange={setSelectedAgent}
+                className="h-8 w-8 sm:h-9 sm:w-9"
+              />
               <PromptInputModelSelect
                 onValueChange={(value) => {
                   const [providerID, modelID] = value.split("/");

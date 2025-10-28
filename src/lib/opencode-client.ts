@@ -5,7 +5,7 @@
  * This connects to a running OpenCode server instance (local or containerized).
  */
 
-import { createOpencodeClient } from "@opencode-ai/sdk";
+import { createOpencodeClient } from "@opencode-ai/sdk/client";
 import type {
   Session,
   Message,
@@ -18,7 +18,7 @@ import type {
   TextPartInput,
   FilePartInput,
   AgentPartInput,
-} from "@opencode-ai/sdk";
+} from "@opencode-ai/sdk/client";
 
 // Export types for use throughout the app
 export type {
