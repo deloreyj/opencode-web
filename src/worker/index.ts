@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { createOpencodeClient } from "@opencode-ai/sdk/client";
+import { z } from "zod";
 import {
 	CreateSessionRequestSchema,
 	UpdateSessionRequestSchema,
@@ -36,8 +37,31 @@ function getOpencodeClient(env: Env) {
 
 // Standard error response helper
 function createErrorResponse(error: unknown, context?: string) {
-	const errorMessage = error instanceof Error ? error.message : String(error);
-	const errorDetails = typeof error === 'object' && error !== null ? error : {};
+	let errorMessage: string;
+	let errorDetails: any = {};
+
+	// Format Zod validation errors nicely
+	if (error instanceof z.ZodError) {
+		const fieldErrors = error.errors.map(err => {
+			const path = err.path.join('.');
+			return `${path}: ${err.message}`;
+		});
+
+		errorMessage = fieldErrors.length === 1
+			? fieldErrors[0]
+			: `Validation failed: ${fieldErrors.join(', ')}`;
+
+		errorDetails = {
+			validationErrors: error.errors.map(err => ({
+				field: err.path.join('.'),
+				message: err.message,
+				code: err.code,
+			})),
+		};
+	} else {
+		errorMessage = error instanceof Error ? error.message : String(error);
+		errorDetails = typeof error === 'object' && error !== null ? error : {};
+	}
 
 	// Log error to Cloudflare observability
 	console.error('[OpenCode API Error]', {
@@ -55,6 +79,53 @@ function createErrorResponse(error: unknown, context?: string) {
 	};
 }
 
+// Determine appropriate HTTP status code from error
+function getErrorStatusCode(error: unknown): number {
+	// Zod validation errors
+	if (error instanceof z.ZodError) {
+		return 400;
+	}
+
+	if (typeof error === 'object' && error !== null) {
+		const err = error as any;
+
+		// Check for explicit status code
+		if (typeof err.status === 'number') {
+			return err.status;
+		}
+
+		// Check for HTTP status in response
+		if (typeof err.response?.status === 'number') {
+			return err.response.status;
+		}
+
+		// Infer from error message/type
+		const message = (err.message || '').toLowerCase();
+
+		// Validation errors
+		if (message.includes('validation') || message.includes('invalid') || message.includes('required')) {
+			return 400;
+		}
+
+		// Not found errors
+		if (message.includes('not found') || message.includes('does not exist')) {
+			return 404;
+		}
+
+		// Authentication/Authorization errors
+		if (message.includes('unauthorized') || message.includes('authentication')) {
+			return 401;
+		}
+
+		if (message.includes('forbidden') || message.includes('permission')) {
+			return 403;
+		}
+	}
+
+	// Default to 500 for unknown errors
+	return 500;
+}
+
 // Handler factory to reduce boilerplate
 type OpencodeHandler<T = unknown> = (client: ReturnType<typeof getOpencodeClient>, context: any) => Promise<{ data?: T; error?: unknown }>;
 
@@ -65,7 +136,10 @@ function createHandler<T = unknown>(
 	return async (c: any) => {
 		const client = getOpencodeClient(c.env);
 		const { data, error } = await handler(client, c);
-		if (error) return c.json(createErrorResponse(error, endpoint), 500);
+		if (error) {
+			const statusCode = getErrorStatusCode(error);
+			return c.json(createErrorResponse(error, endpoint), statusCode);
+		}
 		return c.json({ data });
 	};
 }
