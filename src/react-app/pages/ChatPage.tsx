@@ -24,7 +24,6 @@ import {
   PromptInputAttachment,
   PromptInputAttachments,
   PromptInputBody,
-  PromptInputButton,
   type PromptInputMessage,
   PromptInputModelSelect,
   PromptInputModelSelectContent,
@@ -49,8 +48,13 @@ import {
   ReasoningContent,
   ReasoningTrigger,
 } from "@/components/ai-elements/reasoning";
+import {
+  Tool,
+  ToolContent,
+} from "@/components/ai-elements/tool";
 import { Loader } from "@/components/ai-elements/loader";
-import { CopyIcon, RefreshCcwIcon, MessageSquareIcon, MenuIcon, PlusIcon } from "lucide-react";
+import { CopyIcon, RefreshCcwIcon, MessageSquareIcon, MenuIcon, PlusIcon, ChevronDownIcon, CheckCircleIcon, XCircleIcon, WrenchIcon, ClockIcon } from "lucide-react";
+import { CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   useSessions,
   useMessages,
@@ -63,6 +67,23 @@ import { OpencodeStatus } from "@/components/opencode-status";
 import { SessionDrawer } from "@/components/chat/session-drawer";
 import { Button } from "@/components/ui/button";
 import { ModeToggle } from "@/components/mode-toggle";
+import { getToolContent } from "@/components/chat/tool-contents";
+
+/**
+ * Get status icon for tool call
+ */
+function getToolStatusIcon(status: string) {
+  switch (status) {
+    case "completed":
+      return <CheckCircleIcon className="size-4 text-green-600" />;
+    case "error":
+      return <XCircleIcon className="size-4 text-red-600" />;
+    case "running":
+      return <ClockIcon className="size-4 animate-pulse text-muted-foreground" />;
+    default:
+      return null;
+  }
+}
 
 export function ChatPage() {
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>();
@@ -156,7 +177,7 @@ export function ChatPage() {
             type: "file",
             mime: file.type,
             url: file.url,
-            filename: file.name,
+            filename: (file as any).name,
           });
         }
       }
@@ -240,7 +261,7 @@ export function ChatPage() {
 
       {/* Messages */}
       <Conversation className="flex-1">
-        <ConversationContent className="px-2 py-3 sm:px-4 sm:py-4">
+        <ConversationContent className="px-2 py-2 sm:px-4 sm:py-3">
           {messagesData.length === 0 && !isLoading ? (
             <ConversationEmptyState
               title="Start a conversation"
@@ -263,8 +284,11 @@ export function ChatPage() {
               // Extract reasoning
               const reasoningPart = parts.find((p) => p.type === "reasoning");
 
+              // Extract tool calls
+              const toolParts = parts.filter((p) => p.type === "tool");
+
               return (
-                <div key={message.id} className="mb-4">
+                <div key={message.id} className="mb-3">
                   {/* Sources */}
                   {sources.length > 0 && (
                     <Sources>
@@ -297,6 +321,40 @@ export function ChatPage() {
                     </Reasoning>
                   )}
 
+                  {/* Tool Calls */}
+                  {toolParts.length > 0 && (
+                    <div className="mb-2 space-y-2">
+                      {toolParts.map((toolPart: any) => {
+                        const state = toolPart.state;
+                        const toolName = toolPart.tool;
+                        const description = state.title || "";
+
+                        return (
+                          <Tool key={toolPart.id}>
+                            <CollapsibleTrigger className="flex w-full items-center justify-between gap-4 p-3">
+                              <div className="flex items-center gap-2">
+                                <WrenchIcon className="size-4 text-muted-foreground" />
+                                <span className="font-medium text-sm">
+                                  {toolName}
+                                </span>
+                                {description && (
+                                  <span className="text-muted-foreground text-xs">
+                                    {description}
+                                  </span>
+                                )}
+                                {getToolStatusIcon(state.status)}
+                              </div>
+                              <ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+                            </CollapsibleTrigger>
+                            <ToolContent>
+                              {getToolContent(toolName, state)}
+                            </ToolContent>
+                          </Tool>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   {/* Message */}
                   <Message from={message.role}>
                     <MessageContent>
@@ -319,7 +377,7 @@ export function ChatPage() {
 
                   {/* Actions for assistant messages */}
                   {message.role === "assistant" && (
-                    <Actions className="mt-2">
+                    <Actions className="mt-1.5">
                       <Action
                         onClick={() =>
                           handleCopy(
