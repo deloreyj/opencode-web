@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { env } from 'cloudflare:workers';
 import { zValidator } from "@hono/zod-validator";
 import { createOpencodeClient } from "@opencode-ai/sdk/client";
+import { getSandbox, Sandbox } from "@cloudflare/sandbox";
 import { z } from "zod";
 import {
 	CreateSessionRequestSchema,
@@ -24,12 +25,37 @@ import {
 
 const app = new Hono<{ Bindings: Env }>();
 
-// Create OpenCode client (URL configured per environment in wrangler.jsonc)
-function getOpencodeClient() {
+// Create OpenCode client for direct mode (dev/local)
+function getDirectOpencodeClient() {
 	return createOpencodeClient({
 		baseUrl: env.OPENCODE_URL,
 		throwOnError: false,
 	});
+}
+
+// Create OpenCode client for workspace sandbox mode
+async function getWorkspaceOpencodeClient(workspaceId: string) {
+	try {
+		const sandbox = getSandbox(env.SANDBOX, workspaceId);
+
+		// Expose OpenCode port if not already exposed and get preview URL
+		// exposePort is idempotent - safe to call multiple times
+		const { url } = await sandbox.exposePort(4096, {
+			hostname: env.SANDBOX_HOSTNAME
+		});
+
+		if (!url) {
+			throw new Error('Failed to get preview URL for OpenCode server');
+		}
+
+		return createOpencodeClient({
+			baseUrl: url,
+			throwOnError: false,
+		});
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		throw new Error(`Failed to connect to workspace ${workspaceId}: ${message}`);
+	}
 }
 
 // Standard error response helper
@@ -124,14 +150,15 @@ function getErrorStatusCode(error: unknown): number {
 }
 
 // Handler factory to reduce boilerplate
-type OpencodeHandler<T = unknown> = (client: ReturnType<typeof getOpencodeClient>, context: any) => Promise<{ data?: T; error?: unknown }>;
+type OpencodeHandler<T = unknown> = (client: ReturnType<typeof getDirectOpencodeClient>, context: any) => Promise<{ data?: T; error?: unknown }>;
 
-function createHandler<T = unknown>(
+// Factory for direct mode handlers
+function createDirectHandler<T = unknown>(
 	endpoint: string,
 	handler: OpencodeHandler<T>
 ) {
 	return async (c: any) => {
-		const client = getOpencodeClient();
+		const client = getDirectOpencodeClient();
 		const { data, error } = await handler(client, c);
 		if (error) {
 			const statusCode = getErrorStatusCode(error);
@@ -140,6 +167,440 @@ function createHandler<T = unknown>(
 		return c.json({ data });
 	};
 }
+
+// Factory for workspace mode handlers
+function createWorkspaceHandler<T = unknown>(
+	endpoint: string,
+	handler: OpencodeHandler<T>
+) {
+	return async (c: any) => {
+		try {
+			const workspaceId = c.req.param('workspaceId');
+			const client = await getWorkspaceOpencodeClient(workspaceId);
+			const { data, error } = await handler(client, c);
+			if (error) {
+				const statusCode = getErrorStatusCode(error);
+				return c.json(createErrorResponse(error, endpoint), statusCode);
+			}
+			return c.json({ data });
+		} catch (error) {
+			const statusCode = getErrorStatusCode(error);
+			return c.json(createErrorResponse(error, endpoint), statusCode);
+		}
+	};
+}
+
+// ========================================
+// Create OpenCode Sub-App
+// ========================================
+// This function creates a Hono sub-app with all OpenCode routes
+// It will be mounted at both /api/opencode (direct) and /api/workspaces/:workspaceId/opencode (sandbox)
+function createOpencodeSubApp(createHandler: typeof createDirectHandler | typeof createWorkspaceHandler) {
+	const opencodeApp = new Hono<{ Bindings: Env }>();
+
+	// ========================================
+	// App APIs
+	// ========================================
+	opencodeApp.post(
+		"/app/log",
+		zValidator("json", LogRequestSchema),
+		createHandler("POST /app/log", async (client, c) => {
+			const body = c.req.valid("json");
+			return await client.app.log({ body });
+		})
+	);
+
+	opencodeApp.get(
+		"/app/agents",
+		createHandler("GET /app/agents", async (client) => {
+			return await client.app.agents();
+		})
+	);
+
+	// ========================================
+	// Project APIs
+	// ========================================
+	opencodeApp.get(
+		"/project/list",
+		createHandler("GET /project/list", async (client) => {
+			return await client.project.list();
+		})
+	);
+
+	opencodeApp.get(
+		"/project/current",
+		createHandler("GET /project/current", async (client) => {
+			return await client.project.current();
+		})
+	);
+
+	// ========================================
+	// Path APIs
+	// ========================================
+	opencodeApp.get(
+		"/path",
+		createHandler("GET /path", async (client) => {
+			return await client.path.get();
+		})
+	);
+
+	// ========================================
+	// Config APIs
+	// ========================================
+	opencodeApp.get(
+		"/config",
+		createHandler("GET /config", async (client) => {
+			return await client.config.get();
+		})
+	);
+
+	opencodeApp.get(
+		"/config/providers",
+		createHandler("GET /config/providers", async (client) => {
+			return await client.config.providers();
+		})
+	);
+
+	// ========================================
+	// Session APIs
+	// ========================================
+	opencodeApp.get(
+		"/sessions",
+		createHandler("GET /sessions", async (client) => {
+			return await client.session.list();
+		})
+	);
+
+	opencodeApp.get(
+		"/sessions/:id",
+		createHandler("GET /sessions/:id", async (client, c) => {
+			const id = c.req.param("id");
+			return await client.session.get({ path: { id } });
+		})
+	);
+
+	opencodeApp.get(
+		"/sessions/:id/children",
+		createHandler("GET /sessions/:id/children", async (client, c) => {
+			const id = c.req.param("id");
+			return await client.session.children({ path: { id } });
+		})
+	);
+
+	opencodeApp.post(
+		"/sessions",
+		zValidator("json", CreateSessionRequestSchema),
+		createHandler("POST /sessions", async (client, c) => {
+			const body = c.req.valid("json");
+			return await client.session.create({ body });
+		})
+	);
+
+	opencodeApp.delete(
+		"/sessions/:id",
+		createHandler("DELETE /sessions/:id", async (client, c) => {
+			const id = c.req.param("id");
+			return await client.session.delete({ path: { id } });
+		})
+	);
+
+	opencodeApp.patch(
+		"/sessions/:id",
+		zValidator("json", UpdateSessionRequestSchema),
+		createHandler("PATCH /sessions/:id", async (client, c) => {
+			const id = c.req.param("id");
+			const body = c.req.valid("json");
+			return await client.session.update({ path: { id }, body });
+		})
+	);
+
+	opencodeApp.post(
+		"/sessions/:id/init",
+		zValidator("json", InitRequestSchema),
+		createHandler("POST /sessions/:id/init", async (client, c) => {
+			const id = c.req.param("id");
+			const body = c.req.valid("json");
+			return await client.session.init({ path: { id }, body });
+		})
+	);
+
+	opencodeApp.post(
+		"/sessions/:id/abort",
+		createHandler("POST /sessions/:id/abort", async (client, c) => {
+			const id = c.req.param("id");
+			return await client.session.abort({ path: { id } });
+		})
+	);
+
+	opencodeApp.post(
+		"/sessions/:id/share",
+		createHandler("POST /sessions/:id/share", async (client, c) => {
+			const id = c.req.param("id");
+			return await client.session.share({ path: { id } });
+		})
+	);
+
+	opencodeApp.post(
+		"/sessions/:id/unshare",
+		createHandler("POST /sessions/:id/unshare", async (client, c) => {
+			const id = c.req.param("id");
+			return await client.session.unshare({ path: { id } });
+		})
+	);
+
+	opencodeApp.post(
+		"/sessions/:id/summarize",
+		zValidator("json", SummarizeRequestSchema),
+		createHandler("POST /sessions/:id/summarize", async (client, c) => {
+			const id = c.req.param("id");
+			const body = c.req.valid("json");
+			return await client.session.summarize({ path: { id }, body });
+		})
+	);
+
+	// ========================================
+	// Message APIs
+	// ========================================
+	opencodeApp.get(
+		"/sessions/:id/messages",
+		createHandler("GET /sessions/:id/messages", async (client, c) => {
+			const id = c.req.param("id");
+			return await client.session.messages({ path: { id } });
+		})
+	);
+
+	opencodeApp.get(
+		"/sessions/:sessionId/messages/:messageId",
+		createHandler("GET /sessions/:sessionId/messages/:messageId", async (client, c) => {
+			const sessionId = c.req.param("sessionId");
+			const messageId = c.req.param("messageId");
+			return await client.session.message({ path: { id: sessionId, messageID: messageId } });
+		})
+	);
+
+	opencodeApp.post(
+		"/sessions/:id/prompt",
+		zValidator("json", PromptRequestSchema),
+		createHandler("POST /sessions/:id/prompt", async (client, c) => {
+			const id = c.req.param("id");
+			const body = c.req.valid("json");
+			return await client.session.prompt({ path: { id }, body });
+		})
+	);
+
+	opencodeApp.post(
+		"/sessions/:id/command",
+		zValidator("json", CommandRequestSchema),
+		createHandler("POST /sessions/:id/command", async (client, c) => {
+			const id = c.req.param("id");
+			const body = c.req.valid("json");
+			return await client.session.command({ path: { id }, body });
+		})
+	);
+
+	opencodeApp.post(
+		"/sessions/:id/shell",
+		zValidator("json", ShellRequestSchema),
+		createHandler("POST /sessions/:id/shell", async (client, c) => {
+			const id = c.req.param("id");
+			const body = c.req.valid("json");
+			return await client.session.shell({ path: { id }, body });
+		})
+	);
+
+	opencodeApp.post(
+		"/sessions/:id/revert",
+		zValidator("json", RevertRequestSchema),
+		createHandler("POST /sessions/:id/revert", async (client, c) => {
+			const id = c.req.param("id");
+			const body = c.req.valid("json");
+			return await client.session.revert({ path: { id }, body });
+		})
+	);
+
+	opencodeApp.post(
+		"/sessions/:id/unrevert",
+		createHandler("POST /sessions/:id/unrevert", async (client, c) => {
+			const id = c.req.param("id");
+			return await client.session.unrevert({ path: { id } });
+		})
+	);
+
+	opencodeApp.post(
+		"/sessions/:id/permissions/:permissionId",
+		zValidator("json", PermissionResponseSchema),
+		createHandler("POST /sessions/:id/permissions/:permissionId", async (client, c) => {
+			const id = c.req.param("id");
+			const permissionId = c.req.param("permissionId");
+			const body = c.req.valid("json");
+			return await client.postSessionIdPermissionsPermissionId({
+				path: { id, permissionID: permissionId },
+				body
+			});
+		})
+	);
+
+	// ========================================
+	// File Search APIs
+	// ========================================
+	opencodeApp.post(
+		"/find/text",
+		zValidator("json", TextSearchRequestSchema),
+		createHandler("POST /find/text", async (client, c) => {
+			const query = c.req.valid("json");
+			return await client.find.text({ query });
+		})
+	);
+
+	opencodeApp.post(
+		"/find/files",
+		zValidator("json", FileSearchRequestSchema),
+		createHandler("POST /find/files", async (client, c) => {
+			const query = c.req.valid("json");
+			return await client.find.files({ query });
+		})
+	);
+
+	opencodeApp.post(
+		"/find/symbols",
+		zValidator("json", SymbolSearchRequestSchema),
+		createHandler("POST /find/symbols", async (client, c) => {
+			const query = c.req.valid("json");
+			return await client.find.symbols({ query });
+		})
+	);
+
+	// ========================================
+	// File APIs
+	// ========================================
+	opencodeApp.post(
+		"/file/read",
+		zValidator("json", FileReadRequestSchema),
+		createHandler("POST /file/read", async (client, c) => {
+			const query = c.req.valid("json");
+			return await client.file.read({ query });
+		})
+	);
+
+	opencodeApp.post(
+		"/file/status",
+		zValidator("json", FileStatusRequestSchema.optional()),
+		createHandler("POST /file/status", async (client, c) => {
+			const query = await c.req.json().catch(() => ({}));
+			return await client.file.status({ query });
+		})
+	);
+
+	// ========================================
+	// Auth APIs
+	// ========================================
+	opencodeApp.post(
+		"/auth/:providerId",
+		zValidator("json", AuthSetRequestSchema),
+		createHandler("POST /auth/:providerId", async (client, c) => {
+			const providerId = c.req.param("providerId");
+			const body = c.req.valid("json");
+			return await client.auth.set({ path: { id: providerId }, body });
+		})
+	);
+
+	// ========================================
+	// Event APIs (SSE)
+	// ========================================
+	opencodeApp.get("/event", async (c) => {
+		try {
+			console.log('[OpenCode SSE] Client connecting to events endpoint');
+
+			// Get client based on route context
+			// For workspace mode, workspaceId will be in params from parent route
+			const workspaceId = c.req.param('workspaceId');
+			const client = workspaceId
+				? await getWorkspaceOpencodeClient(workspaceId)
+				: getDirectOpencodeClient();
+
+			const result = await client.event.subscribe();
+
+			// Check if stream exists
+			if (!result.stream) {
+				console.error('[OpenCode SSE] No stream in result');
+				return new Response(
+					`data: ${JSON.stringify({ error: 'No stream available' })}\n\n`,
+					{
+						status: 500,
+						headers: {
+							'Content-Type': 'text/event-stream',
+							'Cache-Control': 'no-cache',
+							'Connection': 'keep-alive',
+						},
+					}
+				);
+			}
+
+			console.log('[OpenCode SSE] Converting AsyncGenerator to ReadableStream');
+
+			// Convert AsyncGenerator to ReadableStream
+			// The SDK returns an AsyncGenerator, not a ReadableStream
+			// We need to iterate over it and format as SSE
+			const stream = new ReadableStream({
+				async start(controller) {
+					const encoder = new TextEncoder();
+					try {
+						console.log('[OpenCode SSE] Starting stream iteration');
+						for await (const event of result.stream) {
+							console.log('[OpenCode SSE] Received event:', event.type);
+							// Format as SSE: data: {json}\n\n
+							const data = `data: ${JSON.stringify(event)}\n\n`;
+							controller.enqueue(encoder.encode(data));
+						}
+						console.log('[OpenCode SSE] Stream completed');
+						controller.close();
+					} catch (error) {
+						console.error('[OpenCode SSE] Stream error:', error);
+						controller.error(error);
+					}
+				},
+			});
+
+			return new Response(stream, {
+				headers: {
+					'Content-Type': 'text/event-stream',
+					'Cache-Control': 'no-cache',
+					'Connection': 'keep-alive',
+				},
+			});
+		} catch (error) {
+			console.error('[OpenCode SSE] Failed to establish SSE connection:', {
+				error: error instanceof Error ? error.message : String(error),
+				stack: error instanceof Error ? error.stack : undefined,
+				timestamp: new Date().toISOString(),
+			});
+
+			// Return error response for SSE connection failures
+			return new Response(
+				`data: ${JSON.stringify({ error: 'Failed to connect to OpenCode events' })}\n\n`,
+				{
+					status: 500,
+					headers: {
+						'Content-Type': 'text/event-stream',
+						'Cache-Control': 'no-cache',
+						'Connection': 'keep-alive',
+					},
+				}
+			);
+		}
+	});
+
+	return opencodeApp;
+}
+
+// ========================================
+// Mount OpenCode Sub-Apps
+// ========================================
+// Direct mode: /api/opencode/* → local OpenCode server (OPENCODE_URL)
+app.route("/api/opencode", createOpencodeSubApp(createDirectHandler));
+
+// Workspace mode: /api/workspaces/:workspaceId/opencode/* → workspace sandbox
+app.route("/api/workspaces/:workspaceId/opencode", createOpencodeSubApp(createWorkspaceHandler));
 
 // ========================================
 // Health Check
@@ -151,390 +612,7 @@ app.get("/health", (c) => {
 	});
 });
 
-// ========================================
-// App APIs
-// ========================================
-app.post(
-	"/api/opencode/app/log",
-	zValidator("json", LogRequestSchema),
-	createHandler("POST /api/opencode/app/log", async (client, c) => {
-		const body = c.req.valid("json");
-		return await client.app.log({ body });
-	})
-);
-
-app.get(
-	"/api/opencode/app/agents",
-	createHandler("GET /api/opencode/app/agents", async (client) => {
-		return await client.app.agents();
-	})
-);
-
-// ========================================
-// Project APIs
-// ========================================
-app.get(
-	"/api/opencode/project/list",
-	createHandler("GET /api/opencode/project/list", async (client) => {
-		return await client.project.list();
-	})
-);
-
-app.get(
-	"/api/opencode/project/current",
-	createHandler("GET /api/opencode/project/current", async (client) => {
-		return await client.project.current();
-	})
-);
-
-// ========================================
-// Path APIs
-// ========================================
-app.get(
-	"/api/opencode/path",
-	createHandler("GET /api/opencode/path", async (client) => {
-		return await client.path.get();
-	})
-);
-
-// ========================================
-// Config APIs
-// ========================================
-app.get(
-	"/api/opencode/config",
-	createHandler("GET /api/opencode/config", async (client) => {
-		return await client.config.get();
-	})
-);
-
-app.get(
-	"/api/opencode/config/providers",
-	createHandler("GET /api/opencode/config/providers", async (client) => {
-		return await client.config.providers();
-	})
-);
-
-// ========================================
-// Session APIs
-// ========================================
-app.get(
-	"/api/opencode/sessions",
-	createHandler("GET /api/opencode/sessions", async (client) => {
-		return await client.session.list();
-	})
-);
-
-app.get(
-	"/api/opencode/sessions/:id",
-	createHandler("GET /api/opencode/sessions/:id", async (client, c) => {
-		const id = c.req.param("id");
-		return await client.session.get({ path: { id } });
-	})
-);
-
-app.get(
-	"/api/opencode/sessions/:id/children",
-	createHandler("GET /api/opencode/sessions/:id/children", async (client, c) => {
-		const id = c.req.param("id");
-		return await client.session.children({ path: { id } });
-	})
-);
-
-app.post(
-	"/api/opencode/sessions",
-	zValidator("json", CreateSessionRequestSchema),
-	createHandler("POST /api/opencode/sessions", async (client, c) => {
-		const body = c.req.valid("json");
-		return await client.session.create({ body });
-	})
-);
-
-app.delete(
-	"/api/opencode/sessions/:id",
-	createHandler("DELETE /api/opencode/sessions/:id", async (client, c) => {
-		const id = c.req.param("id");
-		return await client.session.delete({ path: { id } });
-	})
-);
-
-app.patch(
-	"/api/opencode/sessions/:id",
-	zValidator("json", UpdateSessionRequestSchema),
-	createHandler("PATCH /api/opencode/sessions/:id", async (client, c) => {
-		const id = c.req.param("id");
-		const body = c.req.valid("json");
-		return await client.session.update({ path: { id }, body });
-	})
-);
-
-app.post(
-	"/api/opencode/sessions/:id/init",
-	zValidator("json", InitRequestSchema),
-	createHandler("POST /api/opencode/sessions/:id/init", async (client, c) => {
-		const id = c.req.param("id");
-		const body = c.req.valid("json");
-		return await client.session.init({ path: { id }, body });
-	})
-);
-
-app.post(
-	"/api/opencode/sessions/:id/abort",
-	createHandler("POST /api/opencode/sessions/:id/abort", async (client, c) => {
-		const id = c.req.param("id");
-		return await client.session.abort({ path: { id } });
-	})
-);
-
-app.post(
-	"/api/opencode/sessions/:id/share",
-	createHandler("POST /api/opencode/sessions/:id/share", async (client, c) => {
-		const id = c.req.param("id");
-		return await client.session.share({ path: { id } });
-	})
-);
-
-app.post(
-	"/api/opencode/sessions/:id/unshare",
-	createHandler("POST /api/opencode/sessions/:id/unshare", async (client, c) => {
-		const id = c.req.param("id");
-		return await client.session.unshare({ path: { id } });
-	})
-);
-
-app.post(
-	"/api/opencode/sessions/:id/summarize",
-	zValidator("json", SummarizeRequestSchema),
-	createHandler("POST /api/opencode/sessions/:id/summarize", async (client, c) => {
-		const id = c.req.param("id");
-		const body = c.req.valid("json");
-		return await client.session.summarize({ path: { id }, body });
-	})
-);
-
-// ========================================
-// Message APIs
-// ========================================
-app.get(
-	"/api/opencode/sessions/:id/messages",
-	createHandler("GET /api/opencode/sessions/:id/messages", async (client, c) => {
-		const id = c.req.param("id");
-		return await client.session.messages({ path: { id } });
-	})
-);
-
-app.get(
-	"/api/opencode/sessions/:sessionId/messages/:messageId",
-	createHandler("GET /api/opencode/sessions/:sessionId/messages/:messageId", async (client, c) => {
-		const sessionId = c.req.param("sessionId");
-		const messageId = c.req.param("messageId");
-		return await client.session.message({ path: { id: sessionId, messageID: messageId } });
-	})
-);
-
-app.post(
-	"/api/opencode/sessions/:id/prompt",
-	zValidator("json", PromptRequestSchema),
-	createHandler("POST /api/opencode/sessions/:id/prompt", async (client, c) => {
-		const id = c.req.param("id");
-		const body = c.req.valid("json");
-		return await client.session.prompt({ path: { id }, body });
-	})
-);
-
-app.post(
-	"/api/opencode/sessions/:id/command",
-	zValidator("json", CommandRequestSchema),
-	createHandler("POST /api/opencode/sessions/:id/command", async (client, c) => {
-		const id = c.req.param("id");
-		const body = c.req.valid("json");
-		return await client.session.command({ path: { id }, body });
-	})
-);
-
-app.post(
-	"/api/opencode/sessions/:id/shell",
-	zValidator("json", ShellRequestSchema),
-	createHandler("POST /api/opencode/sessions/:id/shell", async (client, c) => {
-		const id = c.req.param("id");
-		const body = c.req.valid("json");
-		return await client.session.shell({ path: { id }, body });
-	})
-);
-
-app.post(
-	"/api/opencode/sessions/:id/revert",
-	zValidator("json", RevertRequestSchema),
-	createHandler("POST /api/opencode/sessions/:id/revert", async (client, c) => {
-		const id = c.req.param("id");
-		const body = c.req.valid("json");
-		return await client.session.revert({ path: { id }, body });
-	})
-);
-
-app.post(
-	"/api/opencode/sessions/:id/unrevert",
-	createHandler("POST /api/opencode/sessions/:id/unrevert", async (client, c) => {
-		const id = c.req.param("id");
-		return await client.session.unrevert({ path: { id } });
-	})
-);
-
-app.post(
-	"/api/opencode/sessions/:id/permissions/:permissionId",
-	zValidator("json", PermissionResponseSchema),
-	createHandler("POST /api/opencode/sessions/:id/permissions/:permissionId", async (client, c) => {
-		const id = c.req.param("id");
-		const permissionId = c.req.param("permissionId");
-		const body = c.req.valid("json");
-		return await client.postSessionIdPermissionsPermissionId({
-			path: { id, permissionID: permissionId },
-			body
-		});
-	})
-);
-
-// ========================================
-// File Search APIs
-// ========================================
-app.post(
-	"/api/opencode/find/text",
-	zValidator("json", TextSearchRequestSchema),
-	createHandler("POST /api/opencode/find/text", async (client, c) => {
-		const query = c.req.valid("json");
-		return await client.find.text({ query });
-	})
-);
-
-app.post(
-	"/api/opencode/find/files",
-	zValidator("json", FileSearchRequestSchema),
-	createHandler("POST /api/opencode/find/files", async (client, c) => {
-		const query = c.req.valid("json");
-		return await client.find.files({ query });
-	})
-);
-
-app.post(
-	"/api/opencode/find/symbols",
-	zValidator("json", SymbolSearchRequestSchema),
-	createHandler("POST /api/opencode/find/symbols", async (client, c) => {
-		const query = c.req.valid("json");
-		return await client.find.symbols({ query });
-	})
-);
-
-// ========================================
-// File APIs
-// ========================================
-app.post(
-	"/api/opencode/file/read",
-	zValidator("json", FileReadRequestSchema),
-	createHandler("POST /api/opencode/file/read", async (client, c) => {
-		const query = c.req.valid("json");
-		return await client.file.read({ query });
-	})
-);
-
-app.post(
-	"/api/opencode/file/status",
-	zValidator("json", FileStatusRequestSchema.optional()),
-	createHandler("POST /api/opencode/file/status", async (client, c) => {
-		const query = await c.req.json().catch(() => ({}));
-		return await client.file.status({ query });
-	})
-);
-
-// ========================================
-// Auth APIs
-// ========================================
-app.post(
-	"/api/opencode/auth/:providerId",
-	zValidator("json", AuthSetRequestSchema),
-	createHandler("POST /api/opencode/auth/:providerId", async (client, c) => {
-		const providerId = c.req.param("providerId");
-		const body = c.req.valid("json");
-		return await client.auth.set({ path: { id: providerId }, body });
-	})
-);
-
-// ========================================
-// Event APIs (SSE)
-// ========================================
-app.get("/api/opencode/event", async (c) => {
-	try {
-		console.log('[OpenCode SSE] Client connecting to events endpoint');
-
-		const client = getOpencodeClient();
-		const result = await client.event.subscribe();
-
-		// Check if stream exists
-		if (!result.stream) {
-			console.error('[OpenCode SSE] No stream in result');
-			return new Response(
-				`data: ${JSON.stringify({ error: 'No stream available' })}\n\n`,
-				{
-					status: 500,
-					headers: {
-						'Content-Type': 'text/event-stream',
-						'Cache-Control': 'no-cache',
-						'Connection': 'keep-alive',
-					},
-				}
-			);
-		}
-
-		console.log('[OpenCode SSE] Converting AsyncGenerator to ReadableStream');
-
-		// Convert AsyncGenerator to ReadableStream
-		// The SDK returns an AsyncGenerator, not a ReadableStream
-		// We need to iterate over it and format as SSE
-		const stream = new ReadableStream({
-			async start(controller) {
-				const encoder = new TextEncoder();
-				try {
-					console.log('[OpenCode SSE] Starting stream iteration');
-					for await (const event of result.stream) {
-						console.log('[OpenCode SSE] Received event:', event.type);
-						// Format as SSE: data: {json}\n\n
-						const data = `data: ${JSON.stringify(event)}\n\n`;
-						controller.enqueue(encoder.encode(data));
-					}
-					console.log('[OpenCode SSE] Stream completed');
-					controller.close();
-				} catch (error) {
-					console.error('[OpenCode SSE] Stream error:', error);
-					controller.error(error);
-				}
-			},
-		});
-
-		return new Response(stream, {
-			headers: {
-				'Content-Type': 'text/event-stream',
-				'Cache-Control': 'no-cache',
-				'Connection': 'keep-alive',
-			},
-		});
-	} catch (error) {
-		console.error('[OpenCode SSE] Failed to establish SSE connection:', {
-			error: error instanceof Error ? error.message : String(error),
-			stack: error instanceof Error ? error.stack : undefined,
-			timestamp: new Date().toISOString(),
-		});
-
-		// Return error response for SSE connection failures
-		return new Response(
-			`data: ${JSON.stringify({ error: 'Failed to connect to OpenCode events' })}\n\n`,
-			{
-				status: 500,
-				headers: {
-					'Content-Type': 'text/event-stream',
-					'Cache-Control': 'no-cache',
-					'Connection': 'keep-alive',
-				},
-			}
-		);
-	}
-});
+// Export Sandbox class for Durable Object binding
+export { Sandbox };
 
 export default app;
