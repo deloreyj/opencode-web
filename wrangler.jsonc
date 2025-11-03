@@ -57,10 +57,25 @@
 			{ "name": "SANDBOX", "class_name": "Sandbox", "script_name": "opencode-web" }
 		]
 	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": [
+				"Sandbox"
+			]
+		}
+	],
 	"vars": {
 		"OPENCODE_URL": "http://127.0.0.1:4096",
 		"SANDBOX_HOSTNAME": "localhost"
 	},
+	"containers": [
+		{
+			"class_name": "Sandbox",
+			"image": "./Dockerfile.sandbox",
+			"instance_type": "basic"
+		}
+	],
 	"env": {
 		"staging": {
 			"vars": {

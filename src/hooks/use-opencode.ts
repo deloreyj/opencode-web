@@ -3,7 +3,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { opencodeClient } from "@/lib/opencode-client";
+import { useOpencodeClient } from "@/hooks/use-opencode-client";
 import type {
   CreateSessionRequest,
   UpdateSessionRequest,
@@ -64,9 +64,10 @@ export const opencodeKeys = {
  * Hook to write a log entry
  */
 export function useAppLog() {
+  const client = useOpencodeClient();
   return useMutation({
     mutationFn: async (request: LogRequest) => {
-      const { data, error } = await opencodeClient.app.log(request);
+      const { data, error } = await client.app.log(request);
       if (error) throw error;
       return data;
     },
@@ -77,10 +78,11 @@ export function useAppLog() {
  * Hook to get available agents
  */
 export function useAgents() {
+  const client = useOpencodeClient();
   return useQuery({
     queryKey: opencodeKeys.agents(),
     queryFn: async () => {
-      const { data, error } = await opencodeClient.app.agents();
+      const { data, error } = await client.app.agents();
       if (error) throw error;
       return data;
     },
@@ -96,10 +98,11 @@ export function useAgents() {
  * Hook to list all projects
  */
 export function useProjects() {
+  const client = useOpencodeClient();
   return useQuery({
     queryKey: opencodeKeys.projects(),
     queryFn: async () => {
-      const { data, error } = await opencodeClient.project.list();
+      const { data, error } = await client.project.list();
       if (error) throw error;
       return data;
     },
@@ -111,10 +114,11 @@ export function useProjects() {
  * Hook to get current project
  */
 export function useCurrentProject() {
+  const client = useOpencodeClient();
   return useQuery({
     queryKey: opencodeKeys.currentProject(),
     queryFn: async () => {
-      const { data, error } = await opencodeClient.project.current();
+      const { data, error } = await client.project.current();
       if (error) throw error;
       return data;
     },
@@ -130,10 +134,11 @@ export function useCurrentProject() {
  * Hook to get current path
  */
 export function usePath() {
+  const client = useOpencodeClient();
   return useQuery({
     queryKey: opencodeKeys.path(),
     queryFn: async () => {
-      const { data, error } = await opencodeClient.path.get();
+      const { data, error } = await client.path.get();
       if (error) throw error;
       return data;
     },
@@ -149,10 +154,11 @@ export function usePath() {
  * Hook to get OpenCode configuration
  */
 export function useOpencodeConfig() {
+  const client = useOpencodeClient();
   return useQuery({
     queryKey: opencodeKeys.config(),
     queryFn: async () => {
-      const { data, error } = await opencodeClient.config.get();
+      const { data, error } = await client.config.get();
       if (error) throw error;
       return data;
     },
@@ -164,10 +170,11 @@ export function useOpencodeConfig() {
  * Hook to get available providers
  */
 export function useProviders() {
+  const client = useOpencodeClient();
   return useQuery({
     queryKey: opencodeKeys.providers(),
     queryFn: async () => {
-      const { data, error } = await opencodeClient.config.providers();
+      const { data, error } = await client.config.providers();
       if (error) throw error;
       return data;
     },
@@ -183,10 +190,11 @@ export function useProviders() {
  * Hook to list all sessions
  */
 export function useSessions() {
+  const client = useOpencodeClient();
   return useQuery({
     queryKey: opencodeKeys.sessions(),
     queryFn: async () => {
-      const { data, error } = await opencodeClient.session.list();
+      const { data, error } = await client.session.list();
       if (error) throw error;
       return data;
     },
@@ -198,11 +206,12 @@ export function useSessions() {
  * Hook to get a specific session
  */
 export function useSession(sessionId: string | undefined) {
+  const client = useOpencodeClient();
   return useQuery({
     queryKey: sessionId ? opencodeKeys.session(sessionId) : [],
     queryFn: async () => {
       if (!sessionId) return null;
-      const { data, error } = await opencodeClient.session.get({
+      const { data, error } = await client.session.get({
         path: { id: sessionId },
       });
       if (error) throw error;
@@ -216,11 +225,12 @@ export function useSession(sessionId: string | undefined) {
  * Hook to get child sessions
  */
 export function useSessionChildren(sessionId: string | undefined) {
+  const client = useOpencodeClient();
   return useQuery({
     queryKey: sessionId ? opencodeKeys.sessionChildren(sessionId) : [],
     queryFn: async () => {
       if (!sessionId) return [];
-      const { data, error } = await opencodeClient.session.children({
+      const { data, error } = await client.session.children({
         path: { id: sessionId },
       });
       if (error) throw error;
@@ -234,11 +244,12 @@ export function useSessionChildren(sessionId: string | undefined) {
  * Hook to create a new session
  */
 export function useCreateSession() {
+  const client = useOpencodeClient();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (request: CreateSessionRequest) => {
-      const { data, error } = await opencodeClient.session.create({
+      const { data, error } = await client.session.create({
         body: request,
       });
       if (error) throw error;
@@ -254,11 +265,12 @@ export function useCreateSession() {
  * Hook to delete a session
  */
 export function useDeleteSession() {
+  const client = useOpencodeClient();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (sessionId: string) => {
-      const { data, error } = await opencodeClient.session.delete({
+      const { data, error } = await client.session.delete({
         path: { id: sessionId },
       });
       if (error) throw error;
@@ -274,11 +286,12 @@ export function useDeleteSession() {
  * Hook to update a session
  */
 export function useUpdateSession() {
+  const client = useOpencodeClient();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (params: { sessionId: string; request: UpdateSessionRequest }) => {
-      const { data, error } = await opencodeClient.session.update({
+      const { data, error } = await client.session.update({
         path: { id: params.sessionId },
         body: params.request,
       });
@@ -296,9 +309,10 @@ export function useUpdateSession() {
  * Hook to initialize a session (create AGENTS.md)
  */
 export function useInitSession() {
+  const client = useOpencodeClient();
   return useMutation({
     mutationFn: async (params: { sessionId: string; request: InitRequest }) => {
-      const { data, error } = await opencodeClient.session.init({
+      const { data, error } = await client.session.init({
         path: { id: params.sessionId },
         body: params.request,
       });
@@ -312,9 +326,10 @@ export function useInitSession() {
  * Hook to abort a session
  */
 export function useAbortSession() {
+  const client = useOpencodeClient();
   return useMutation({
     mutationFn: async (sessionId: string) => {
-      const { data, error } = await opencodeClient.session.abort({
+      const { data, error } = await client.session.abort({
         path: { id: sessionId },
       });
       if (error) throw error;
@@ -327,11 +342,12 @@ export function useAbortSession() {
  * Hook to share a session
  */
 export function useShareSession() {
+  const client = useOpencodeClient();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (sessionId: string) => {
-      const { data, error } = await opencodeClient.session.share({
+      const { data, error } = await client.session.share({
         path: { id: sessionId },
       });
       if (error) throw error;
@@ -347,11 +363,12 @@ export function useShareSession() {
  * Hook to unshare a session
  */
 export function useUnshareSession() {
+  const client = useOpencodeClient();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (sessionId: string) => {
-      const { data, error } = await opencodeClient.session.unshare({
+      const { data, error } = await client.session.unshare({
         path: { id: sessionId },
       });
       if (error) throw error;
@@ -367,9 +384,10 @@ export function useUnshareSession() {
  * Hook to summarize a session
  */
 export function useSummarizeSession() {
+  const client = useOpencodeClient();
   return useMutation({
     mutationFn: async (params: { sessionId: string; request: SummarizeRequest }) => {
-      const { data, error } = await opencodeClient.session.summarize({
+      const { data, error } = await client.session.summarize({
         path: { id: params.sessionId },
         body: params.request,
       });
@@ -387,11 +405,12 @@ export function useSummarizeSession() {
  * Hook to get messages for a session
  */
 export function useMessages(sessionId: string | undefined) {
+  const client = useOpencodeClient();
   return useQuery({
     queryKey: sessionId ? opencodeKeys.messages(sessionId) : [],
     queryFn: async () => {
       if (!sessionId) return [];
-      const { data, error } = await opencodeClient.session.messages({
+      const { data, error } = await client.session.messages({
         path: { id: sessionId },
       });
       if (error) throw error;
@@ -406,11 +425,12 @@ export function useMessages(sessionId: string | undefined) {
  * Hook to get a specific message
  */
 export function useMessage(sessionId: string | undefined, messageId: string | undefined) {
+  const client = useOpencodeClient();
   return useQuery({
     queryKey: sessionId && messageId ? opencodeKeys.message(sessionId, messageId) : [],
     queryFn: async () => {
       if (!sessionId || !messageId) return null;
-      const { data, error } = await opencodeClient.session.message({
+      const { data, error } = await client.session.message({
         path: { id: sessionId, message_id: messageId },
       });
       if (error) throw error;
@@ -424,11 +444,12 @@ export function useMessage(sessionId: string | undefined, messageId: string | un
  * Hook to send a prompt message
  */
 export function useSendMessage() {
+  const client = useOpencodeClient();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (params: { sessionId: string; request: PromptRequest }) => {
-      const { data, error } = await opencodeClient.session.prompt({
+      const { data, error } = await client.session.prompt({
         path: { id: params.sessionId },
         body: params.request,
       });
@@ -447,11 +468,12 @@ export function useSendMessage() {
  * Hook to send a command
  */
 export function useSendCommand() {
+  const client = useOpencodeClient();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (params: { sessionId: string; request: CommandRequest }) => {
-      const { data, error } = await opencodeClient.session.command({
+      const { data, error } = await client.session.command({
         path: { id: params.sessionId },
         body: params.request,
       });
@@ -470,11 +492,12 @@ export function useSendCommand() {
  * Hook to run a shell command
  */
 export function useShellCommand() {
+  const client = useOpencodeClient();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (params: { sessionId: string; request: ShellRequest }) => {
-      const { data, error } = await opencodeClient.session.shell({
+      const { data, error } = await client.session.shell({
         path: { id: params.sessionId },
         body: params.request,
       });
@@ -493,11 +516,12 @@ export function useShellCommand() {
  * Hook to revert a message
  */
 export function useRevertMessage() {
+  const client = useOpencodeClient();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (params: { sessionId: string; request: RevertRequest }) => {
-      const { data, error } = await opencodeClient.session.revert({
+      const { data, error } = await client.session.revert({
         path: { id: params.sessionId },
         body: params.request,
       });
@@ -519,11 +543,12 @@ export function useRevertMessage() {
  * Hook to unrevert messages
  */
 export function useUnrevertMessage() {
+  const client = useOpencodeClient();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (sessionId: string) => {
-      const { data, error } = await opencodeClient.session.unrevert({
+      const { data, error } = await client.session.unrevert({
         path: { id: sessionId },
       });
       if (error) throw error;
@@ -548,9 +573,10 @@ export function useUnrevertMessage() {
  * Hook to search for text in files
  */
 export function useTextSearch() {
+  const client = useOpencodeClient();
   return useMutation({
     mutationFn: async (request: TextSearchRequest) => {
-      const { data, error } = await opencodeClient.find.text({ query: request });
+      const { data, error } = await client.find.text({ query: request });
       if (error) throw error;
       return data;
     },
@@ -561,9 +587,10 @@ export function useTextSearch() {
  * Hook to find files by name
  */
 export function useFileSearch() {
+  const client = useOpencodeClient();
   return useMutation({
     mutationFn: async (request: FileSearchRequest) => {
-      const { data, error } = await opencodeClient.find.files({ query: request });
+      const { data, error } = await client.find.files({ query: request });
       if (error) throw error;
       return data;
     },
@@ -574,9 +601,10 @@ export function useFileSearch() {
  * Hook to find workspace symbols
  */
 export function useSymbolSearch() {
+  const client = useOpencodeClient();
   return useMutation({
     mutationFn: async (request: SymbolSearchRequest) => {
-      const { data, error } = await opencodeClient.find.symbols({ query: request });
+      const { data, error } = await client.find.symbols({ query: request });
       if (error) throw error;
       return data;
     },
@@ -591,9 +619,10 @@ export function useSymbolSearch() {
  * Hook to read a file
  */
 export function useFileRead() {
+  const client = useOpencodeClient();
   return useMutation({
     mutationFn: async (request: FileReadRequest) => {
-      const { data, error } = await opencodeClient.file.read({ query: request });
+      const { data, error } = await client.file.read({ query: request });
       if (error) throw error;
       return data;
     },
@@ -604,10 +633,11 @@ export function useFileRead() {
  * Hook to get file status
  */
 export function useFileStatus(path?: string) {
+  const client = useOpencodeClient();
   return useQuery({
     queryKey: opencodeKeys.fileStatus(path),
     queryFn: async () => {
-      const { data, error } = await opencodeClient.file.status({
+      const { data, error } = await client.file.status({
         query: path ? { path } : undefined
       });
       if (error) throw error;
@@ -625,9 +655,10 @@ export function useFileStatus(path?: string) {
  * Hook to set authentication credentials
  */
 export function useAuthSet() {
+  const client = useOpencodeClient();
   return useMutation({
     mutationFn: async (params: { providerId: string; request: AuthSetRequest }) => {
-      const { data, error } = await opencodeClient.auth.set({
+      const { data, error } = await client.auth.set({
         path: { id: params.providerId },
         body: params.request,
       });
@@ -645,13 +676,14 @@ export function useAuthSet() {
  * Hook to respond to a permission request
  */
 export function usePermissionResponse() {
+  const client = useOpencodeClient();
   return useMutation({
     mutationFn: async (params: {
       sessionId: string;
       permissionId: string;
       response: PermissionResponse;
     }) => {
-      const { data, error } = await opencodeClient.postSessionByIdPermissionsByPermissionId({
+      const { data, error } = await client.postSessionByIdPermissionsByPermissionId({
         path: { id: params.sessionId, permission_id: params.permissionId },
         body: params.response,
       });

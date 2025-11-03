@@ -1,21 +1,10 @@
 # Dockerfile for OpenCode Sandbox Container
 # Extends Cloudflare Sandbox base image with OpenCode CLI
+FROM docker.io/cloudflare/sandbox:0.4.14
 
-FROM cloudflare/sandbox:latest
-
-# Install OpenCode CLI via npm
+# Install OpenCode CLI globally (like other system tools)
 RUN npm install -g opencode-ai
 
-# Create workspace directory for cloned repositories
-RUN mkdir -p /workspace
-
-# Expose OpenCode server port (always available)
-EXPOSE 4096
-
-# Set working directory
-WORKDIR /workspace
-
-# Start OpenCode server
-# Bind to 0.0.0.0 so it's accessible via Sandbox preview URL
-# Dev server ports will be exposed dynamically via sandbox.exposePort() as needed
-CMD ["opencode", "serve", "--port", "4096", "--host", "0.0.0.0"]
+# Expose ports for OpenCode server (4096) and container worker (8080)
+# Note: Application files are copied at runtime, not during build
+EXPOSE 4096 8080

@@ -75,6 +75,8 @@ import { Button } from "@/components/ui/button";
 import { ModeToggle } from "@/components/mode-toggle";
 import { AgentModeToggle } from "@/components/agent-mode-toggle";
 import { getToolContent } from "@/components/chat/tool-contents";
+import { WorkspaceSelector } from "@/components/workspace-selector";
+import { WorkspaceCreateForm } from "@/components/workspace-create-form";
 
 /**
  * Get status icon for tool call
@@ -260,41 +262,47 @@ export function ChatPage() {
   return (
     <div className="flex h-full w-full flex-col">
       {/* Mobile Header */}
-      <div className="flex items-center justify-between gap-2 border-b bg-card px-3 py-2 sm:px-4 sm:py-3">
-        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setDrawerOpen(true)}
-            className="h-9 w-9 shrink-0 sm:h-10 sm:w-10"
-          >
-            <MenuIcon className="size-5" />
-            <span className="sr-only">Open menu</span>
-          </Button>
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate text-base font-semibold sm:text-lg">
-              {currentSession?.title || "OpenCode Chat"}
-            </h1>
-            <div className="hidden sm:block">
-              <OpencodeStatus 
-                sseConnected={sseConnected} 
-                hasExceededRetries={hasExceededRetries}
-                sessionUsage={sessionUsage}
-              />
+      <div className="flex flex-col gap-2 border-b bg-card px-3 py-2 sm:px-4 sm:py-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setDrawerOpen(true)}
+              className="h-9 w-9 shrink-0 sm:h-10 sm:w-10"
+            >
+              <MenuIcon className="size-5" />
+              <span className="sr-only">Open menu</span>
+            </Button>
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate text-base font-semibold sm:text-lg">
+                {currentSession?.title || "OpenCode Chat"}
+              </h1>
+              <div className="hidden sm:block">
+                <OpencodeStatus
+                  sseConnected={sseConnected}
+                  hasExceededRetries={hasExceededRetries}
+                  sessionUsage={sessionUsage}
+                />
+              </div>
             </div>
           </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <ModeToggle />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleCreateSession}
+              className="h-9 w-9 shrink-0 sm:h-10 sm:w-10"
+            >
+              <PlusIcon className="size-5" />
+              <span className="sr-only">New chat</span>
+            </Button>
+          </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <ModeToggle />
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleCreateSession}
-            className="h-9 w-9 shrink-0 sm:h-10 sm:w-10"
-          >
-            <PlusIcon className="size-5" />
-            <span className="sr-only">New chat</span>
-          </Button>
+        <div className="flex items-center gap-2">
+          <WorkspaceSelector />
+          <WorkspaceCreateForm />
         </div>
       </div>
 

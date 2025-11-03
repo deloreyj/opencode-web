@@ -6,6 +6,9 @@ import { cloudflare } from "@cloudflare/vite-plugin";
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), cloudflare()],
+  server: {
+    port: 7777
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src")

@@ -12,8 +12,8 @@ importers:
         specifier: ^2.0.80
         version: 2.0.80(react@19.0.0)(zod@3.25.76)
       '@cloudflare/sandbox':
-        specifier: ^0.4.11
-        version: 0.4.11
+        specifier: ^0.4.14
+        version: 0.4.14
       '@hono/zod-validator':
         specifier: ^0.7.4
         version: 0.7.4(hono@4.8.2)(zod@3.25.76)
@@ -537,15 +537,15 @@ packages:
     peerDependencies:
       storybook: ^0.0.0-0 || ^9.0.0 || ^9.1.0-0 || ^9.2.0-0 || ^10.0.0-0
 
-  '@cloudflare/containers@0.0.29':
-    resolution: {integrity: sha512-tiVCbS7p2SBWNZd4Ym6zx2gMJdQqq7VhWStID0DkQ1iCyqmLis1hDUNmeVbHCYKSnsyZq/SUxFspRwrXNaA3Yg==}
+  '@cloudflare/containers@0.0.30':
+    resolution: {integrity: sha512-i148xBgmyn/pje82ZIyuTr/Ae0BT/YWwa1/GTJcw6DxEjUHAzZLaBCiX446U9OeuJ2rBh/L/9FIzxX5iYNt1AQ==}
 
   '@cloudflare/kv-asset-handler@0.4.0':
     resolution: {integrity: sha512-+tv3z+SPp+gqTIcImN9o0hqE9xyfQjI1XD9pL6NuKjua9B1y7mNYv0S9cP+QEbA4ppVgGZEmKOvHX5G5Ei1CVA==}
     engines: {node: '>=18.0.0'}
 
-  '@cloudflare/sandbox@0.4.11':
-    resolution: {integrity: sha512-j3pZcYsuv6HoYeJnLCx/UguMKyITv3sSI9j0gMd8WrfXtN5naqUuVmDgd7j097TeDNDALb7MXArCIsX89U9Iqg==}
+  '@cloudflare/sandbox@0.4.14':
+    resolution: {integrity: sha512-sI8yEqUd/vukhwSHGi93xau7xEtbP+OD/8xnjGbXr2iIGnAV+05VhLVIfJmwuU3VE8R96dnBJtEucEE5ZtXhcQ==}
 
   '@cloudflare/unenv-preset@2.7.6':
     resolution: {integrity: sha512-ykG2nd3trk6jbknRCH69xL3RpGLLbKCrbTbWSOvKEq7s4jH06yLrQlRr/q9IU+dK9p1JY1EXqhFK7VG5KqhzmQ==}
@@ -6045,15 +6045,15 @@ snapshots:
       - '@chromatic-com/cypress'
       - '@chromatic-com/playwright'
 
-  '@cloudflare/containers@0.0.29': {}
+  '@cloudflare/containers@0.0.30': {}
 
   '@cloudflare/kv-asset-handler@0.4.0':
     dependencies:
       mime: 3.0.0
 
-  '@cloudflare/sandbox@0.4.11':
+  '@cloudflare/sandbox@0.4.14':
     dependencies:
-      '@cloudflare/containers': 0.0.29
+      '@cloudflare/containers': 0.0.30
 
   '@cloudflare/unenv-preset@2.7.6(unenv@2.0.0-rc.21)(workerd@1.20251001.0)':
     dependencies:
