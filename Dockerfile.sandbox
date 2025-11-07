@@ -26,5 +26,8 @@ RUN if [ -f /tmp/internal-scripts/install-cloudflare-warp-certs.sh ]; then \
     echo "Skipping Cloudflare WARP certs installation (script not found)"; \
   fi && rm -rf /tmp/internal-scripts
 
-# Expose ports for OpenCode server (4096) and container worker (8080)
-EXPOSE 4096 8080
+# Expose ports:
+# - 3000: Container server (Cloudflare Sandbox runtime API)
+# - 4096: OpenCode server
+# - 8080: Container worker (our Hono API)
+EXPOSE 3000 4096 8080
