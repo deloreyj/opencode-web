@@ -54,7 +54,7 @@ import {
   ToolContent,
 } from "@/components/ai-elements/tool";
 import { Loader } from "@/components/ai-elements/loader";
-import { CopyIcon, RefreshCcwIcon, MessageSquareIcon, MenuIcon, PlusIcon, ChevronDownIcon, CheckCircleIcon, XCircleIcon, WrenchIcon, ClockIcon, SettingsIcon, GitCompareIcon, MonitorIcon } from "lucide-react";
+import { CopyIcon, RefreshCcwIcon, MessageSquareIcon, MenuIcon, PlusIcon, ChevronDownIcon, CheckCircleIcon, XCircleIcon, WrenchIcon, ClockIcon, SettingsIcon, GitCompareIcon, MonitorIcon, HistoryIcon, XIcon } from "lucide-react";
 import { CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   useSessions,
@@ -80,13 +80,13 @@ import { WorkspaceSelector } from "@/components/workspace-selector";
 import { WorkspaceCreateForm } from "@/components/workspace-create-form";
 import { ApiKeySettings } from "@/components/api-key-settings";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 import { DiffViewer as DiffViewerComponent } from "@/components/blocks/diff-viewer/diff-viewer";
 import { useWorkspaceDiff } from "@/hooks/use-workspace-diff";
 import { useWorkspaceStatus, workspaceStatusKeys } from "@/hooks/use-workspace-status";
@@ -295,6 +295,7 @@ export function ChatPage() {
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>();
   const [input, setInput] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("conversation");
   const [selectedModel, setSelectedModel] = useState<{
     providerID: string;
@@ -538,68 +539,21 @@ export function ChatPage() {
       {/* Mobile Header */}
       <div className="flex flex-col gap-2 border-b bg-card px-3 py-2 sm:px-4 sm:py-3">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setDrawerOpen(true)}
-              className="h-9 w-9 shrink-0 sm:h-10 sm:w-10"
-            >
-              <MenuIcon className="size-5" />
-              <span className="sr-only">Open menu</span>
-            </Button>
-            <div className="min-w-0 flex-1">
-              <h1 className="truncate text-base font-semibold sm:text-lg">
-                {currentSession?.title || "OpenCode Chat"}
-              </h1>
-              <div className="hidden sm:block">
-                <OpencodeStatus
-                  sseConnected={sseConnected}
-                  hasExceededRetries={hasExceededRetries}
-                  sessionUsage={sessionUsage}
-                />
-              </div>
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-base font-semibold sm:text-lg">
+              {currentSession?.title || "OpenCode Chat"}
+            </h1>
+            <div className="hidden sm:block">
+              <OpencodeStatus
+                sseConnected={sseConnected}
+                hasExceededRetries={hasExceededRetries}
+                sessionUsage={sessionUsage}
+              />
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9 shrink-0 sm:h-10 sm:w-10"
-                >
-                  <SettingsIcon className="size-5" />
-                  <span className="sr-only">Settings</span>
-                </Button>
-              </SheetTrigger>
-              <SheetContent>
-                <SheetHeader>
-                  <SheetTitle>Settings</SheetTitle>
-                  <SheetDescription>
-                    Configure your OpenCode settings
-                  </SheetDescription>
-                </SheetHeader>
-                <div className="mt-6">
-                  <ApiKeySettings />
-                </div>
-              </SheetContent>
-            </Sheet>
             <ModeToggle />
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleCreateSession}
-              className="h-9 w-9 shrink-0 sm:h-10 sm:w-10"
-            >
-              <PlusIcon className="size-5" />
-              <span className="sr-only">New chat</span>
-            </Button>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <WorkspaceSelector />
-          <WorkspaceCreateForm />
         </div>
       </div>
 
@@ -787,29 +741,51 @@ export function ChatPage() {
       <div className="border-t bg-card p-2 sm:p-4">
         <PromptInput globalDrop multiple onSubmit={handleSubmit}>
           <PromptInputHeader>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={cycleViewMode}
-              className="h-8 gap-2 sm:h-9"
-              title={`Switch view (current: ${viewMode})`}
-            >
-              {getViewModeIcon()}
-              <span className="text-xs font-medium sm:text-sm">
-                {viewMode === "conversation" ? "Chat" : viewMode === "diff" ? "Diff" : "App"}
-              </span>
-            </Button>
-            {viewMode === "diff" && (
+            <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleStageAll}
-                disabled={isStaging || !activeWorkspaceId}
-                className="h-8 sm:h-9"
+                onClick={cycleViewMode}
+                className="h-8 gap-2 sm:h-9"
+                title={`Switch view (current: ${viewMode})`}
               >
-                {isStaging ? "Staging..." : "Stage All"}
+                {getViewModeIcon()}
+                <span className="text-xs font-medium sm:text-sm">
+                  {viewMode === "conversation" ? "Chat" : viewMode === "diff" ? "Diff" : "App"}
+                </span>
               </Button>
-            )}
+              {viewMode === "diff" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleStageAll}
+                  disabled={isStaging || !activeWorkspaceId}
+                  className="h-8 sm:h-9"
+                >
+                  {isStaging ? "Staging..." : "Stage All"}
+                </Button>
+              )}
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setDrawerOpen(true)}
+                className="h-8 w-8 sm:h-9 sm:w-9"
+                title="Conversation history"
+              >
+                <HistoryIcon className="size-5" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setSettingsOpen(true)}
+                className="h-8 w-8 sm:h-9 sm:w-9"
+                title="Settings"
+              >
+                <SettingsIcon className="size-5" />
+              </Button>
+            </div>
           </PromptInputHeader>
           <PromptInputBody>
             <PromptInputAttachments>
@@ -830,7 +806,7 @@ export function ChatPage() {
                   <PromptInputActionAddAttachments />
                 </PromptInputActionMenuContent>
               </PromptInputActionMenu>
-              <AgentModeToggle 
+              <AgentModeToggle
                 selectedAgent={selectedAgent}
                 onAgentChange={setSelectedAgent}
                 className="h-8 w-8 sm:h-9 sm:w-9"
@@ -881,6 +857,37 @@ export function ChatPage() {
         onDeleteSession={handleDeleteSession}
         isLoading={sessionsLoading}
       />
+
+      {/* Settings Drawer */}
+      <Drawer open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DrawerContent className="max-h-[85vh]">
+          <DrawerHeader className="border-b pb-4">
+            <div className="flex items-center justify-between">
+              <DrawerTitle className="text-left">Settings</DrawerTitle>
+              <DrawerClose asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <XIcon className="size-5" />
+                </Button>
+              </DrawerClose>
+            </div>
+          </DrawerHeader>
+          <div className="flex-1 overflow-auto p-4">
+            <div className="space-y-6">
+              <div>
+                <h3 className="mb-3 font-semibold text-sm">Workspace</h3>
+                <div className="flex items-center gap-2 min-w-0">
+                  <WorkspaceSelector />
+                  <WorkspaceCreateForm />
+                </div>
+              </div>
+              <div>
+                <h3 className="mb-3 font-semibold text-sm">API Keys</h3>
+                <ApiKeySettings />
+              </div>
+            </div>
+          </div>
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 }

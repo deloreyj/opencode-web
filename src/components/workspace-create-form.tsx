@@ -5,6 +5,7 @@ import { z } from "zod";
 import { useWorkspace } from "@/lib/workspace-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PlusIcon } from "lucide-react";
 import {
 	Dialog,
 	DialogContent,
@@ -63,8 +64,8 @@ export function WorkspaceCreateForm() {
 			}}
 		>
 			<DialogTrigger asChild>
-				<Button size="sm">
-					New Workspace
+				<Button size="icon" variant="outline">
+					<PlusIcon className="size-5" />
 				</Button>
 			</DialogTrigger>
 			<DialogContent className="sm:max-w-[500px]">
@@ -72,12 +73,10 @@ export function WorkspaceCreateForm() {
 					id="workspace-create-form"
 					onSubmit={form.handleSubmit(onSubmit)}
 				>
-					<DialogHeader>
+					<DialogHeader className="text-left">
 						<DialogTitle>Create Workspace</DialogTitle>
 						<DialogDescription>
 							Clone a Git repository into a new sandboxed workspace.
-							<br />
-							<strong>Note:</strong> Creating a workspace will clone the repository into a Cloudflare sandbox container. This requires deployment to Cloudflare. For local development, the "Local Development" workspace uses your local machine.
 						</DialogDescription>
 					</DialogHeader>
 					<div className="py-4">

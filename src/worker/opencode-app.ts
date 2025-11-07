@@ -5,6 +5,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { createOpencodeClient } from "@opencode-ai/sdk/client";
 import { z } from "zod";
+import { logger } from "../lib/logger";
 import {
 	CreateSessionRequestSchema,
 	UpdateSessionRequestSchema,
@@ -128,11 +129,16 @@ function createHandler<T = unknown>(
 	opencodeClient: ReturnType<typeof createOpencodeClient>
 ) {
 	return async (c: any) => {
+		logger.debug(`[${endpoint}] Request received`);
 		const { data, error } = await handler(opencodeClient, c);
 		if (error) {
+			logger.error(`[${endpoint}] Error occurred`, error);
 			const statusCode = getErrorStatusCode(error);
 			return c.json(createErrorResponse(error, endpoint), statusCode);
 		}
+		logger.debug(`[${endpoint}] Success, wrapping data in response`, {
+			dataType: Array.isArray(data) ? `array[${data.length}]` : typeof data,
+		});
 		return c.json({ data });
 	};
 }
