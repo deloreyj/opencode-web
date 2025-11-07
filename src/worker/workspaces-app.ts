@@ -310,32 +310,40 @@ app.get("/:id", async (c) => {
 	try {
 		const workspaceId = c.req.param("id");
 
-		// Get sandbox instance
-		const sandbox = getSandbox(c.env.SANDBOX, workspaceId);
-
-		// Try to get OpenCode URL if exposed
-		let opencodeUrl: string | undefined;
-		try {
-			const { url } = await sandbox.exposePort(4096, {
-				hostname: c.env.SANDBOX_HOSTNAME
-			});
-			opencodeUrl = url;
-		} catch (err) {
-			// Port might not be exposed yet
-			opencodeUrl = undefined;
+		// Special case: "local" workspace for dev mode
+		if (workspaceId === "local") {
+			const response: GetWorkspaceResponse = {
+				id: "local",
+				repoUrl: "local://dev",
+				branch: "local",
+				status: "ready",
+				opencodeUrl: c.env.OPENCODE_URL,
+				createdAt: new Date().toISOString(),
+				updatedAt: new Date().toISOString(),
+			};
+			return c.json({ data: response });
 		}
 
-		const response: GetWorkspaceResponse = {
-			id: workspaceId,
-			repoUrl: "unknown", // TODO: Store workspace metadata
-			branch: "main",
-			status: opencodeUrl ? "ready" : "initializing",
-			opencodeUrl,
-			createdAt: new Date().toISOString(),
-			updatedAt: new Date().toISOString(),
-		};
+		// Get metadata for sandbox workspaces
+		const metadata = workspaceMetadata.get(workspaceId);
+		if (metadata) {
+			const response: GetWorkspaceResponse = {
+				id: workspaceId,
+				repoUrl: metadata.repoUrl,
+				branch: metadata.branch,
+				status: metadata.status as any,
+				opencodeUrl: metadata.opencodeUrl,
+				createdAt: metadata.createdAt,
+				updatedAt: metadata.createdAt,
+			};
+			return c.json({ data: response });
+		}
 
-		return c.json({ data: response });
+		// Workspace not found
+		return c.json(
+			{ error: `Workspace ${workspaceId} not found` },
+			404
+		);
 	} catch (error) {
 		console.error('[Workspace Get Error]', error);
 		const statusCode = getErrorStatusCode(error);
