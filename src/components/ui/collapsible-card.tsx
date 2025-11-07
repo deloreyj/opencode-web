@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils";
 import { ChevronDown } from "lucide-react";
 import * as Collapsible from "@radix-ui/react-collapsible";
 import { Button } from "@/components/ui/button";
-import { CopyButton } from "./copy-button";
 import { clamp } from "@/lib/clamp";
 
 const CollapsibleCard = ({
@@ -64,12 +63,6 @@ const CollapsibleCardTitle: React.FC<
       >
         {children}
       </p>
-      {title && (
-        <CopyButton
-          value={title}
-          className="opacity-0 group-hover:opacity-100 data-[state=copied]:opacity-100"
-        />
-      )}
     </div>
   );
 };

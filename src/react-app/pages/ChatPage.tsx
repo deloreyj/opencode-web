@@ -89,7 +89,11 @@ import {
 } from "@/components/ui/sheet";
 import { DiffViewer as DiffViewerComponent } from "@/components/blocks/diff-viewer/diff-viewer";
 import { useWorkspaceDiff } from "@/hooks/use-workspace-diff";
+import { useWorkspaceStatus, workspaceStatusKeys } from "@/hooks/use-workspace-status";
 import { useWorkspace } from "@/lib/workspace-context";
+import { stageAllChanges, stageFile, unstageFile } from "@/lib/workspace-client";
+import { useQueryClient } from "@tanstack/react-query";
+import { workspaceDiffKeys } from "@/hooks/use-workspace-diff";
 
 type ViewMode = "conversation" | "diff" | "preview";
 
@@ -110,12 +114,94 @@ function getToolStatusIcon(status: string) {
 }
 
 /**
+ * Parse git status output to get staged files
+ * Git status --porcelain format:
+ * XY filename
+ * X = staged status, Y = unstaged status
+ * M  = staged modification (X position)
+ * A  = staged addition
+ */
+function parseStagedFiles(statusOutput: string): Set<string> {
+  const staged = new Set<string>();
+  const lines = statusOutput.split('\n').filter(line => line.trim());
+
+  for (const line of lines) {
+    if (line.length < 3) continue;
+
+    const stagedStatus = line[0]; // First character = staging area status
+    const filepath = line.substring(3); // Skip XY and space
+
+    // If first character is not space, file has staged changes
+    if (stagedStatus !== ' ' && stagedStatus !== '?') {
+      staged.add(filepath);
+    }
+  }
+
+  return staged;
+}
+
+/**
  * DiffViewer Component
  */
-function DiffViewer() {
+function DiffViewer({
+  searchQuery,
+  onSearchChange,
+  onStageFile,
+  onUnstageFile,
+  isStaging,
+}: {
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
+  onStageFile: (filepath: string) => void;
+  onUnstageFile: (filepath: string) => void;
+  isStaging: boolean;
+}) {
   const { activeWorkspaceId } = useWorkspace();
   const { data: diffData, isLoading, error } = useWorkspaceDiff(activeWorkspaceId);
-  const [searchQuery, setSearchQuery] = useState("");
+  const { data: statusData } = useWorkspaceStatus(activeWorkspaceId);
+
+  // Parse staged files from git status
+  const stagedFiles = useMemo(() => {
+    if (!statusData?.status) return new Set<string>();
+    return parseStagedFiles(statusData.status);
+  }, [statusData?.status]);
+
+  // Filter the diff by filename - must be before early returns to satisfy Rules of Hooks
+  const filteredDiff = useMemo(() => {
+    if (!diffData?.diff || !searchQuery.trim()) {
+      return diffData?.diff || "";
+    }
+
+    // Parse the diff to get individual file sections
+    const lines = diffData.diff.split('\n');
+    const filteredSections: string[] = [];
+    let currentSection: string[] = [];
+    let currentFile = '';
+    let inSection = false;
+
+    for (const line of lines) {
+      // Check if this is a file header
+      if (line.startsWith('diff --git')) {
+        // Save previous section if it matched
+        if (inSection && currentSection.length > 0) {
+          filteredSections.push(currentSection.join('\n'));
+        }
+        // Start new section
+        currentSection = [line];
+        currentFile = line;
+        inSection = currentFile.toLowerCase().includes(searchQuery.toLowerCase());
+      } else {
+        currentSection.push(line);
+      }
+    }
+
+    // Don't forget the last section
+    if (inSection && currentSection.length > 0) {
+      filteredSections.push(currentSection.join('\n'));
+    }
+
+    return filteredSections.join('\n');
+  }, [diffData?.diff, searchQuery]);
 
   if (isLoading) {
     return (
@@ -164,58 +250,27 @@ function DiffViewer() {
     );
   }
 
-  // Filter the diff by filename
-  const filteredDiff = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return diffData.diff;
-    }
-
-    // Parse the diff to get individual file sections
-    const lines = diffData.diff.split('\n');
-    const filteredSections: string[] = [];
-    let currentSection: string[] = [];
-    let currentFile = '';
-    let inSection = false;
-
-    for (const line of lines) {
-      // Check if this is a file header
-      if (line.startsWith('diff --git')) {
-        // Save previous section if it matched
-        if (inSection && currentSection.length > 0) {
-          filteredSections.push(currentSection.join('\n'));
-        }
-        // Start new section
-        currentSection = [line];
-        currentFile = line;
-        inSection = currentFile.toLowerCase().includes(searchQuery.toLowerCase());
-      } else {
-        currentSection.push(line);
-      }
-    }
-
-    // Don't forget the last section
-    if (inSection && currentSection.length > 0) {
-      filteredSections.push(currentSection.join('\n'));
-    }
-
-    return filteredSections.join('\n');
-  }, [diffData.diff, searchQuery]);
-
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="shrink-0 border-b p-4">
+      <div className="flex-1 overflow-auto p-4">
+        <div className="mx-auto max-w-4xl">
+          <DiffViewerComponent
+            patch={filteredDiff}
+            stagedFiles={stagedFiles}
+            onStageFile={onStageFile}
+            onUnstageFile={onUnstageFile}
+            isStaging={isStaging}
+          />
+        </div>
+      </div>
+      <div className="shrink-0 border-t bg-card p-2 sm:p-4">
         <input
           type="text"
           placeholder="Search files..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => onSearchChange(e.target.value)}
           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         />
-      </div>
-      <div className="flex-1 overflow-auto p-4">
-        <div className="mx-auto max-w-4xl">
-          <DiffViewerComponent patch={filteredDiff} />
-        </div>
       </div>
     </div>
   );
@@ -246,6 +301,11 @@ export function ChatPage() {
     modelID: string;
   } | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<string | undefined>();
+  const [diffSearchQuery, setDiffSearchQuery] = useState("");
+  const [isStaging, setIsStaging] = useState(false);
+
+  const { activeWorkspaceId } = useWorkspace();
+  const queryClient = useQueryClient();
 
   // Queries
   const { data: sessions, isLoading: sessionsLoading } = useSessions();
@@ -395,6 +455,58 @@ export function ChatPage() {
       return "conversation";
     });
   }, []);
+
+  const handleStageAll = useCallback(async () => {
+    if (!activeWorkspaceId) return;
+
+    try {
+      setIsStaging(true);
+      await stageAllChanges(activeWorkspaceId);
+
+      // Refetch the diff and status after staging
+      queryClient.invalidateQueries({ queryKey: workspaceDiffKeys.diff(activeWorkspaceId) });
+      queryClient.invalidateQueries({ queryKey: workspaceStatusKeys.status(activeWorkspaceId) });
+    } catch (err) {
+      console.error('Failed to stage changes:', err);
+      alert(`Failed to stage changes: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setIsStaging(false);
+    }
+  }, [activeWorkspaceId, queryClient]);
+
+  const handleStageFile = useCallback(async (filepath: string) => {
+    if (!activeWorkspaceId) return;
+
+    try {
+      setIsStaging(true);
+      await stageFile(activeWorkspaceId, filepath);
+
+      // Refetch status after staging
+      queryClient.invalidateQueries({ queryKey: workspaceStatusKeys.status(activeWorkspaceId) });
+    } catch (err) {
+      console.error('Failed to stage file:', err);
+      alert(`Failed to stage file: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setIsStaging(false);
+    }
+  }, [activeWorkspaceId, queryClient]);
+
+  const handleUnstageFile = useCallback(async (filepath: string) => {
+    if (!activeWorkspaceId) return;
+
+    try {
+      setIsStaging(true);
+      await unstageFile(activeWorkspaceId, filepath);
+
+      // Refetch status after unstaging
+      queryClient.invalidateQueries({ queryKey: workspaceStatusKeys.status(activeWorkspaceId) });
+    } catch (err) {
+      console.error('Failed to unstage file:', err);
+      alert(`Failed to unstage file: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setIsStaging(false);
+    }
+  }, [activeWorkspaceId, queryClient]);
 
   const getViewModeIcon = () => {
     switch (viewMode) {
@@ -657,7 +769,13 @@ export function ChatPage() {
         </Conversation>
       ) : viewMode === "diff" ? (
         <div className="flex-1 overflow-auto">
-          <DiffViewer />
+          <DiffViewer
+            searchQuery={diffSearchQuery}
+            onSearchChange={setDiffSearchQuery}
+            onStageFile={handleStageFile}
+            onUnstageFile={handleUnstageFile}
+            isStaging={isStaging}
+          />
         </div>
       ) : (
         <div className="flex-1 overflow-auto">
@@ -681,6 +799,17 @@ export function ChatPage() {
                 {viewMode === "conversation" ? "Chat" : viewMode === "diff" ? "Diff" : "App"}
               </span>
             </Button>
+            {viewMode === "diff" && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleStageAll}
+                disabled={isStaging || !activeWorkspaceId}
+                className="h-8 sm:h-9"
+              >
+                {isStaging ? "Staging..." : "Stage All"}
+              </Button>
+            )}
           </PromptInputHeader>
           <PromptInputBody>
             <PromptInputAttachments>
