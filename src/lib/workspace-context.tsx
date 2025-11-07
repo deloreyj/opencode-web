@@ -3,8 +3,10 @@ import {
 	useContext,
 	useState,
 	useCallback,
+	useEffect,
 	type ReactNode,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type {
 	CreateWorkspaceRequest,
 	GetWorkspaceResponse,
@@ -14,6 +16,7 @@ import {
 	listWorkspaces as apiListWorkspaces,
 	deleteWorkspace as apiDeleteWorkspace,
 } from "@/lib/workspace-client";
+import { opencodeKeys } from "@/hooks/use-opencode";
 
 interface WorkspaceContextValue {
 	workspaces: GetWorkspaceResponse[];
@@ -29,12 +32,18 @@ interface WorkspaceContextValue {
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
+	const queryClient = useQueryClient();
 	const [workspaces, setWorkspaces] = useState<GetWorkspaceResponse[]>([]);
 	const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(
 		null,
 	);
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+
+	// Invalidate all OpenCode queries when workspace changes
+	useEffect(() => {
+		queryClient.invalidateQueries({ queryKey: opencodeKeys.all });
+	}, [activeWorkspaceId, queryClient]);
 
 	const refreshWorkspaces = useCallback(async () => {
 		try {
@@ -69,6 +78,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
 				setWorkspaces((prev) => [...prev, workspace]);
 				setActiveWorkspaceId(workspace.id);
+
+				// Invalidate all OpenCode queries to refresh with new workspace environment
+				// This will refetch sessions, messages, providers, agents, config, etc.
+				await queryClient.invalidateQueries({ queryKey: opencodeKeys.all });
 			} catch (err) {
 				const message = err instanceof Error ? err.message : String(err);
 				setError(message);
@@ -77,7 +90,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 				setIsLoading(false);
 			}
 		},
-		[],
+		[queryClient],
 	);
 
 	const deleteWorkspace = useCallback(

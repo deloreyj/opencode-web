@@ -6,6 +6,7 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import type { OpencodeEvent } from "@/types/opencode-events";
 import { isEventForSession } from "./opencode-event-utils";
+import { useWorkspace } from "@/lib/workspace-context";
 
 export interface OpencodeEventsState {
   connected: boolean;
@@ -78,6 +79,8 @@ export function useOpencodeEvents(options: UseOpencodeEventsOptions = {}) {
     maxRetries = 3,
   } = options;
 
+  const { activeWorkspaceId } = useWorkspace();
+
   const [state, setState] = useState<OpencodeEventsState>({
     connected: false,
     error: null,
@@ -112,11 +115,17 @@ export function useOpencodeEvents(options: UseOpencodeEventsOptions = {}) {
     }
 
     try {
+      // Build event URL based on workspace
+      const eventUrl = activeWorkspaceId
+        ? `/api/workspaces/${activeWorkspaceId}/opencode/event`
+        : "/api/opencode/event";
+
       console.log("[OpenCode SSE] Connecting...", {
+        url: eventUrl,
         attempt: failedAttemptsRef.current + 1,
         maxRetries,
       });
-      const eventSource = new EventSource("/api/opencode/event");
+      const eventSource = new EventSource(eventUrl);
 
       eventSource.onopen = () => {
         console.log("[OpenCode SSE] Connected");
@@ -208,7 +217,7 @@ export function useOpencodeEvents(options: UseOpencodeEventsOptions = {}) {
       }));
       onError?.(error);
     }
-  }, [sessionId, onEvent, onConnect, onDisconnect, onError, autoReconnect, reconnectDelay, maxRetries]);
+  }, [activeWorkspaceId, sessionId, onEvent, onConnect, onDisconnect, onError, autoReconnect, reconnectDelay, maxRetries]);
 
   const disconnect = useCallback(() => {
     console.log("[OpenCode SSE] Disconnecting...");
@@ -227,19 +236,39 @@ export function useOpencodeEvents(options: UseOpencodeEventsOptions = {}) {
     }
   }, [onDisconnect]);
 
-  // Connect/disconnect based on enabled flag
+  // Reconnect when workspace changes
   useEffect(() => {
-    if (enabled) {
-      connect();
-    } else {
-      disconnect();
+    if (!enabled) return;
+
+    console.log("[OpenCode SSE] Workspace changed, reconnecting...", { activeWorkspaceId });
+
+    // Close existing connection without setting shouldConnectRef to false
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
     }
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+
+    // Reset retry counter on workspace change
+    failedAttemptsRef.current = 0;
+    setState((prev) => ({
+      ...prev,
+      hasExceededRetries: false,
+      failedAttempts: 0,
+    }));
+
+    // Re-enable connection flag and connect
+    shouldConnectRef.current = true;
+    connect();
 
     // Cleanup on unmount
     return () => {
       disconnect();
     };
-  }, [enabled, connect, disconnect]);
+  }, [activeWorkspaceId, enabled, connect, disconnect]);
 
   return {
     ...state,

@@ -40,10 +40,12 @@ app.all("/:workspaceId/opencode/*", async (c) => {
 		const workspaceId = c.req.param('workspaceId');
 		const fullPath = c.req.path;
 
-		// Extract path after /opencode for the container worker
-		// Example: /ws-123/opencode/sessions/abc/prompt -> /sessions/abc/prompt
-		const opencodePath = fullPath.split('/opencode')[1] || '/';
-		const containerPath = `${opencodePath}`;
+		// Extract everything after /api/workspaces/:workspaceId/opencode
+		// The app is mounted at /api/workspaces, so fullPath includes that
+		const prefix = `/api/workspaces/${workspaceId}/opencode`;
+		const containerPath = fullPath.startsWith(prefix)
+			? fullPath.substring(prefix.length) || '/'
+			: '/';
 
 		console.log(`[Workspace Proxy] ${c.req.method} ${containerPath} for workspace: ${workspaceId}`);
 
@@ -182,11 +184,11 @@ echo "${configBase64}" | base64 -d > /root/.config/opencode/config.json
 			await new Promise(resolve => setTimeout(resolve, 2000));
 
 			// Start the container worker (Hono API) in the background
-			// Files are already in /opt/worker from the Docker image
+			// Worker files are baked into the Docker image at /opt/worker
 			console.log(`[Workspace ${workspaceId}] Starting container worker...`);
 			let containerWorkerProcessId: string | undefined;
 			try {
-				const workerProcess = await sandbox.startProcess('bun run /opt/worker/container-worker.ts', {
+				const workerProcess = await sandbox.startProcess('bun /opt/worker/container-worker.ts', {
 					env: {
 						PORT: '8080',
 						PATH: '/usr/local/bin:/usr/bin:/bin',
