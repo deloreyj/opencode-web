@@ -222,41 +222,41 @@ export function createOpencodeApp(config: AppConfig) {
 	// Session APIs
 	// ========================================
 	app.get(
-		"/sessions",
-		handler("GET /sessions", async (client) => {
+		"/session",
+		handler("GET /session", async (client) => {
 			return await client.session.list();
 		})
 	);
 
 	app.post(
-		"/sessions",
+		"/session",
 		zValidator("json", CreateSessionRequestSchema),
-		handler("POST /sessions", async (client, c) => {
+		handler("POST /session", async (client, c) => {
 			const body = c.req.valid("json");
 			return await client.session.create({ body });
 		})
 	);
 
 	app.get(
-		"/sessions/:id",
-		handler("GET /sessions/:id", async (client, c) => {
+		"/session/:id",
+		handler("GET /session/:id", async (client, c) => {
 			const id = c.req.param("id");
 			return await client.session.get({ path: { id } });
 		})
 	);
 
 	app.get(
-		"/sessions/:id/children",
-		handler("GET /sessions/:id/children", async (client, c) => {
+		"/session/:id/children",
+		handler("GET /session/:id/children", async (client, c) => {
 			const id = c.req.param("id");
 			return await client.session.children({ path: { id } });
 		})
 	);
 
 	app.patch(
-		"/sessions/:id",
+		"/session/:id",
 		zValidator("json", UpdateSessionRequestSchema),
-		handler("PATCH /sessions/:id", async (client, c) => {
+		handler("PATCH /session/:id", async (client, c) => {
 			const id = c.req.param("id");
 			const body = c.req.valid("json");
 			return await client.session.update({ path: { id }, body });
@@ -264,17 +264,17 @@ export function createOpencodeApp(config: AppConfig) {
 	);
 
 	app.delete(
-		"/sessions/:id",
-		handler("DELETE /sessions/:id", async (client, c) => {
+		"/session/:id",
+		handler("DELETE /session/:id", async (client, c) => {
 			const id = c.req.param("id");
 			return await client.session.delete({ path: { id } });
 		})
 	);
 
 	app.post(
-		"/sessions/:id/init",
+		"/session/:id/init",
 		zValidator("json", InitRequestSchema),
-		handler("POST /sessions/:id/init", async (client, c) => {
+		handler("POST /session/:id/init", async (client, c) => {
 			const id = c.req.param("id");
 			const body = c.req.valid("json");
 			return await client.session.init({ path: { id }, body });
@@ -282,9 +282,9 @@ export function createOpencodeApp(config: AppConfig) {
 	);
 
 	app.post(
-		"/sessions/:id/prompt",
+		"/session/:id/prompt",
 		zValidator("json", PromptRequestSchema),
-		handler("POST /sessions/:id/prompt", async (client, c) => {
+		handler("POST /session/:id/prompt", async (client, c) => {
 			const id = c.req.param("id");
 			const body = c.req.valid("json");
 			return await client.session.prompt({ path: { id }, body });
@@ -292,9 +292,9 @@ export function createOpencodeApp(config: AppConfig) {
 	);
 
 	app.post(
-		"/sessions/:id/command",
+		"/session/:id/command",
 		zValidator("json", CommandRequestSchema),
-		handler("POST /sessions/:id/command", async (client, c) => {
+		handler("POST /session/:id/command", async (client, c) => {
 			const id = c.req.param("id");
 			const body = c.req.valid("json");
 			return await client.session.command({ path: { id }, body });
@@ -302,9 +302,9 @@ export function createOpencodeApp(config: AppConfig) {
 	);
 
 	app.post(
-		"/sessions/:id/shell",
+		"/session/:id/shell",
 		zValidator("json", ShellRequestSchema),
-		handler("POST /sessions/:id/shell", async (client, c) => {
+		handler("POST /session/:id/shell", async (client, c) => {
 			const id = c.req.param("id");
 			const body = c.req.valid("json");
 			return await client.session.shell({ path: { id }, body });
@@ -312,9 +312,9 @@ export function createOpencodeApp(config: AppConfig) {
 	);
 
 	app.post(
-		"/sessions/:id/revert",
+		"/session/:id/revert",
 		zValidator("json", RevertRequestSchema),
-		handler("POST /sessions/:id/revert", async (client, c) => {
+		handler("POST /session/:id/revert", async (client, c) => {
 			const id = c.req.param("id");
 			const body = c.req.valid("json");
 			return await client.session.revert({ path: { id }, body });
@@ -322,41 +322,41 @@ export function createOpencodeApp(config: AppConfig) {
 	);
 
 	app.post(
-		"/sessions/:id/unrevert",
-		handler("POST /sessions/:id/unrevert", async (client, c) => {
+		"/session/:id/unrevert",
+		handler("POST /session/:id/unrevert", async (client, c) => {
 			const id = c.req.param("id");
 			return await client.session.unrevert({ path: { id } });
 		})
 	);
 
 	app.post(
-		"/sessions/:id/abort",
-		handler("POST /sessions/:id/abort", async (client, c) => {
+		"/session/:id/abort",
+		handler("POST /session/:id/abort", async (client, c) => {
 			const id = c.req.param("id");
 			return await client.session.abort({ path: { id } });
 		})
 	);
 
 	app.post(
-		"/sessions/:id/share",
-		handler("POST /sessions/:id/share", async (client, c) => {
+		"/session/:id/share",
+		handler("POST /session/:id/share", async (client, c) => {
 			const id = c.req.param("id");
 			return await client.session.share({ path: { id } });
 		})
 	);
 
 	app.post(
-		"/sessions/:id/unshare",
-		handler("POST /sessions/:id/unshare", async (client, c) => {
+		"/session/:id/unshare",
+		handler("POST /session/:id/unshare", async (client, c) => {
 			const id = c.req.param("id");
 			return await client.session.unshare({ path: { id } });
 		})
 	);
 
 	app.post(
-		"/sessions/:id/summarize",
+		"/session/:id/summarize",
 		zValidator("json", SummarizeRequestSchema),
-		handler("POST /sessions/:id/summarize", async (client, c) => {
+		handler("POST /session/:id/summarize", async (client, c) => {
 			const id = c.req.param("id");
 			const body = c.req.valid("json");
 			return await client.session.summarize({ path: { id }, body });
@@ -367,8 +367,8 @@ export function createOpencodeApp(config: AppConfig) {
 	// Permission APIs
 	// ========================================
 	app.post(
-		"/sessions/:id/permissions/:permissionId",
-		handler("POST /sessions/:id/permissions/:permissionId", async (client, c) => {
+		"/session/:id/permissions/:permissionId",
+		handler("POST /session/:id/permissions/:permissionId", async (client, c) => {
 			const id = c.req.param("id");
 			const permissionId = c.req.param("permissionId");
 			const body = await c.req.json();
@@ -383,16 +383,16 @@ export function createOpencodeApp(config: AppConfig) {
 	// Message APIs
 	// ========================================
 	app.get(
-		"/sessions/:id/messages",
-		handler("GET /sessions/:id/messages", async (client, c) => {
+		"/session/:id/message",
+		handler("GET /session/:id/message", async (client, c) => {
 			const id = c.req.param("id");
 			return await client.session.messages({ path: { id } });
 		})
 	);
 
 	app.get(
-		"/sessions/:sessionId/messages/:messageId",
-		handler("GET /sessions/:sessionId/messages/:messageId", async (client, c) => {
+		"/session/:sessionId/message/:messageId",
+		handler("GET /session/:sessionId/message/:messageId", async (client, c) => {
 			const sessionId = c.req.param("sessionId");
 			const messageId = c.req.param("messageId");
 			return await client.session.message({ path: { id: sessionId, messageID: messageId } });
