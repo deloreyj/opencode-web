@@ -3,7 +3,7 @@
  * Responsive chat interface with drawer for mobile and sidebar for desktop
  */
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import {
   Conversation,
   ConversationContent,
@@ -87,6 +87,9 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { DiffViewer as DiffViewerComponent } from "@/components/blocks/diff-viewer/diff-viewer";
+import { useWorkspaceDiff } from "@/hooks/use-workspace-diff";
+import { useWorkspace } from "@/lib/workspace-context";
 
 type ViewMode = "conversation" | "diff" | "preview";
 
@@ -107,15 +110,112 @@ function getToolStatusIcon(status: string) {
 }
 
 /**
- * Stub DiffViewer Component
+ * DiffViewer Component
  */
 function DiffViewer() {
+  const { activeWorkspaceId } = useWorkspace();
+  const { data: diffData, isLoading, error } = useWorkspaceDiff(activeWorkspaceId);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  if (isLoading) {
+    return (
+      <div className="flex h-full items-center justify-center p-4 text-muted-foreground">
+        <div className="text-center">
+          <Loader />
+          <p className="mt-4 text-sm">Loading git diff...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex h-full items-center justify-center p-4 text-muted-foreground">
+        <div className="text-center">
+          <GitCompareIcon className="mx-auto mb-4 size-12 text-red-500" />
+          <h3 className="mb-2 font-semibold text-lg">Error Loading Diff</h3>
+          <p className="text-sm">{error.message}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!activeWorkspaceId) {
+    return (
+      <div className="flex h-full items-center justify-center p-4 text-muted-foreground">
+        <div className="text-center">
+          <GitCompareIcon className="mx-auto mb-4 size-12" />
+          <h3 className="mb-2 font-semibold text-lg">No Workspace Selected</h3>
+          <p className="text-sm">Create or select a workspace to view git changes</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!diffData?.diff || diffData.diff.trim() === "") {
+    return (
+      <div className="flex h-full items-center justify-center p-4 text-muted-foreground">
+        <div className="text-center">
+          <GitCompareIcon className="mx-auto mb-4 size-12" />
+          <h3 className="mb-2 font-semibold text-lg">No Changes</h3>
+          <p className="text-sm">No uncommitted changes in your workspace</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Filter the diff by filename
+  const filteredDiff = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return diffData.diff;
+    }
+
+    // Parse the diff to get individual file sections
+    const lines = diffData.diff.split('\n');
+    const filteredSections: string[] = [];
+    let currentSection: string[] = [];
+    let currentFile = '';
+    let inSection = false;
+
+    for (const line of lines) {
+      // Check if this is a file header
+      if (line.startsWith('diff --git')) {
+        // Save previous section if it matched
+        if (inSection && currentSection.length > 0) {
+          filteredSections.push(currentSection.join('\n'));
+        }
+        // Start new section
+        currentSection = [line];
+        currentFile = line;
+        inSection = currentFile.toLowerCase().includes(searchQuery.toLowerCase());
+      } else {
+        currentSection.push(line);
+      }
+    }
+
+    // Don't forget the last section
+    if (inSection && currentSection.length > 0) {
+      filteredSections.push(currentSection.join('\n'));
+    }
+
+    return filteredSections.join('\n');
+  }, [diffData.diff, searchQuery]);
+
   return (
-    <div className="flex h-full items-center justify-center p-4 text-muted-foreground">
-      <div className="text-center">
-        <GitCompareIcon className="mx-auto mb-4 size-12" />
-        <h3 className="mb-2 font-semibold text-lg">Git Diff Viewer</h3>
-        <p className="text-sm">Diff viewer implementation coming soon</p>
+    <div className="flex h-full flex-col overflow-hidden">
+      <div className="shrink-0 border-b p-4">
+        <input
+          type="text"
+          placeholder="Search files..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        />
+      </div>
+      <div className="flex-1 overflow-auto p-4">
+        <div className="mx-auto max-w-4xl">
+          <DiffViewerComponent patch={filteredDiff} />
+        </div>
       </div>
     </div>
   );
