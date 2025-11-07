@@ -2,6 +2,7 @@ import type {
 	CreateWorkspaceRequest,
 	CreateWorkspaceResponse,
 	GetWorkspaceResponse,
+	GetWorkspaceDiffResponse,
 	ListWorkspacesResponse,
 } from "@/types/workspace-schemas";
 
@@ -60,4 +61,18 @@ export async function deleteWorkspace(id: string): Promise<void> {
 		const error = await response.json();
 		throw new Error(error.error?.message || "Failed to delete workspace");
 	}
+}
+
+export async function getWorkspaceDiff(
+	id: string,
+): Promise<GetWorkspaceDiffResponse> {
+	const response = await fetch(`${API_BASE}/${id}/diff`);
+
+	if (!response.ok) {
+		const error = await response.json();
+		throw new Error(error.error?.message || "Failed to get workspace diff");
+	}
+
+	const result = await response.json();
+	return result.data;
 }

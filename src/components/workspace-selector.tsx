@@ -47,30 +47,28 @@ export function WorkspaceSelector() {
 	return (
 		<div className="flex items-center gap-2">
 			<Select
-				value={activeWorkspaceId || "direct"}
-				onValueChange={(value) =>
-					setActiveWorkspaceId(value === "direct" ? null : value)
-				}
+				value={activeWorkspaceId || ""}
+				onValueChange={setActiveWorkspaceId}
 				disabled={isLoading}
 			>
 				<SelectTrigger className="w-[300px]">
-					<SelectValue />
+					<SelectValue placeholder="Select workspace" />
 				</SelectTrigger>
 				<SelectContent>
-					<SelectItem value="direct">Direct Mode (Local)</SelectItem>
 					{workspaces.map((workspace) => (
 						<SelectItem key={workspace.id} value={workspace.id}>
 							<div className="flex items-center justify-between w-full">
 								<span className="truncate">
-									{workspace.repoUrl.split("/").slice(-2).join("/")} (
-									{workspace.branch})
+									{workspace.id === "local"
+										? "Local Development"
+										: `${workspace.repoUrl.split("/").slice(-2).join("/")} (${workspace.branch})`}
 								</span>
 							</div>
 						</SelectItem>
 					))}
 				</SelectContent>
 			</Select>
-			{activeWorkspaceId && (
+			{activeWorkspaceId && activeWorkspaceId !== "local" && (
 				<Button
 					variant="ghost"
 					size="icon"

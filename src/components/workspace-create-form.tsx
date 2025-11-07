@@ -63,7 +63,7 @@ export function WorkspaceCreateForm() {
 			}}
 		>
 			<DialogTrigger asChild>
-				<Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
+				<Button size="sm">
 					New Workspace
 				</Button>
 			</DialogTrigger>
@@ -77,7 +77,7 @@ export function WorkspaceCreateForm() {
 						<DialogDescription>
 							Clone a Git repository into a new sandboxed workspace.
 							<br />
-							<strong>Note:</strong> Workspace mode requires deployment to Cloudflare to work properly. In local development, use Direct Mode instead.
+							<strong>Note:</strong> Creating a workspace will clone the repository into a Cloudflare sandbox container. This requires deployment to Cloudflare. For local development, the "Local Development" workspace uses your local machine.
 						</DialogDescription>
 					</DialogHeader>
 					<div className="py-4">

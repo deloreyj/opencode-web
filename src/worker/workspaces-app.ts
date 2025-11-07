@@ -49,6 +49,27 @@ app.all("/:workspaceId/opencode/*", async (c) => {
 
 		console.log(`[Workspace Proxy] ${c.req.method} ${containerPath} for workspace: ${workspaceId}`);
 
+		// Special case: "local" workspace for dev mode
+		// Proxy directly to OPENCODE_URL (localhost:4096)
+		if (workspaceId === "local") {
+			const opcUrl = new URL(containerPath, c.env.OPENCODE_URL);
+
+			const headers = new Headers(c.req.raw.headers);
+			headers.delete('host');
+
+			const response = await fetch(opcUrl.toString(), {
+				method: c.req.method,
+				headers,
+				body: c.req.method !== 'GET' && c.req.method !== 'HEAD' ? c.req.raw.body : undefined,
+			});
+
+			return new Response(response.body, {
+				status: response.status,
+				statusText: response.statusText,
+				headers: response.headers,
+			});
+		}
+
 		// Proxy the request directly to the container worker running in the sandbox
 		return await proxyToWorkspaceSandbox(c, workspaceId, containerPath, workspaceMetadata);
 	} catch (error) {
@@ -246,13 +267,37 @@ echo "${configBase64}" | base64 -d > /root/.config/opencode/config.json
 // List all workspaces
 app.get("", async (c) => {
 	try {
-		// TODO: Implement workspace listing
-		// For now, return empty list since we don't have persistence yet
+		const workspaces: GetWorkspaceResponse[] = [];
+
+		// Add "local" workspace for dev mode
+		workspaces.push({
+			id: "local",
+			repoUrl: "local://dev",
+			branch: "local",
+			status: "ready",
+			opencodeUrl: c.env.OPENCODE_URL,
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		});
+
+		// Add sandbox workspaces from metadata
+		for (const [id, metadata] of workspaceMetadata.entries()) {
+			workspaces.push({
+				id,
+				repoUrl: metadata.repoUrl,
+				branch: metadata.branch,
+				status: metadata.status as any,
+				opencodeUrl: metadata.opencodeUrl,
+				createdAt: metadata.createdAt,
+				updatedAt: metadata.createdAt,
+			});
+		}
+
 		const response: ListWorkspacesResponse = {
-			workspaces: [],
+			workspaces,
 		};
 
-		return c.json({ data: response });
+		return c.json(response);
 	} catch (error) {
 		console.error('[Workspace List Error]', error);
 		const statusCode = getErrorStatusCode(error);
@@ -369,6 +414,74 @@ app.get("/:id/logs", async (c) => {
 		console.error('[Workspace Logs Error]', error);
 		const statusCode = getErrorStatusCode(error);
 		return c.json(createErrorResponse(error, "GET /:id/logs"), statusCode);
+	}
+});
+
+// Get workspace git diff
+app.get("/:id/diff", async (c) => {
+	try {
+		const workspaceId = c.req.param("id");
+
+		// Special case: "local" workspace for dev mode
+		// Call the local git diff server (port 4097)
+		if (workspaceId === "local") {
+			try {
+				const response = await fetch('http://127.0.0.1:4097/diff');
+
+				if (!response.ok) {
+					throw new Error(`Git diff server responded with ${response.status}`);
+				}
+
+				const data = await response.json() as { diff: string };
+				const diff = data.diff || "";
+
+				return c.json({
+					data: {
+						diff,
+						workspaceId: "local",
+					}
+				});
+			} catch (err: any) {
+				console.warn('[Local Diff Warning]', err.message);
+				return c.json({
+					data: {
+						diff: "",
+						workspaceId: "local",
+					}
+				});
+			}
+		}
+
+		// Get metadata for sandbox workspaces
+		const metadata = workspaceMetadata.get(workspaceId);
+		if (!metadata) {
+			return c.json(
+				{ error: `Workspace ${workspaceId} not found` },
+				404
+			);
+		}
+
+		// Get sandbox instance
+		const sandbox = getSandbox(c.env.SANDBOX, workspaceId);
+
+		// Run git diff in the repository directory
+		const result = await sandbox.exec('git', {
+			args: ['diff', 'HEAD'],
+			cwd: '/workspace/repo'
+		});
+
+		const diff = result.stdout || "";
+
+		return c.json({
+			data: {
+				diff,
+				workspaceId,
+			}
+		});
+	} catch (error) {
+		console.error('[Workspace Diff Error]', error);
+		const statusCode = getErrorStatusCode(error);
+		return c.json(createErrorResponse(error, "GET /:id/diff"), statusCode);
 	}
 });
 

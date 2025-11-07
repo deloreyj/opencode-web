@@ -6,7 +6,7 @@ import {
 	useEffect,
 	type ReactNode,
 } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import type {
 	CreateWorkspaceRequest,
 	GetWorkspaceResponse,
@@ -18,104 +18,93 @@ import {
 } from "@/lib/workspace-client";
 import { opencodeKeys } from "@/hooks/use-opencode";
 
+export const workspaceKeys = {
+	all: ["workspaces"] as const,
+	lists: () => [...workspaceKeys.all, "list"] as const,
+	detail: (id: string) => [...workspaceKeys.all, "detail", id] as const,
+};
+
 interface WorkspaceContextValue {
 	workspaces: GetWorkspaceResponse[];
 	activeWorkspaceId: string | null;
 	setActiveWorkspaceId: (id: string | null) => void;
 	createWorkspace: (data: CreateWorkspaceRequest) => Promise<void>;
 	deleteWorkspace: (id: string) => Promise<void>;
-	refreshWorkspaces: () => Promise<void>;
 	isLoading: boolean;
-	error: string | null;
+	error: Error | null;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
 	const queryClient = useQueryClient();
-	const [workspaces, setWorkspaces] = useState<GetWorkspaceResponse[]>([]);
 	const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(
 		null,
 	);
-	const [isLoading, setIsLoading] = useState(false);
-	const [error, setError] = useState<string | null>(null);
+
+	// Use React Query to fetch workspaces
+	const {
+		data: workspaces = [],
+		isLoading,
+		error,
+	} = useQuery<GetWorkspaceResponse[], Error>({
+		queryKey: workspaceKeys.lists(),
+		queryFn: apiListWorkspaces,
+		staleTime: 60000, // 1 minute
+	});
+
+	// Auto-select "local" workspace if no workspace is selected
+	useEffect(() => {
+		if (!activeWorkspaceId && workspaces.some((ws) => ws.id === "local")) {
+			setActiveWorkspaceId("local");
+		}
+	}, [activeWorkspaceId, workspaces]);
 
 	// Invalidate all OpenCode queries when workspace changes
 	useEffect(() => {
 		queryClient.invalidateQueries({ queryKey: opencodeKeys.all });
 	}, [activeWorkspaceId, queryClient]);
 
-	const refreshWorkspaces = useCallback(async () => {
-		try {
-			setIsLoading(true);
-			setError(null);
-			const data = await apiListWorkspaces();
-			setWorkspaces(data);
-		} catch (err) {
-			const message = err instanceof Error ? err.message : String(err);
-			setError(message);
-		} finally {
-			setIsLoading(false);
-		}
-	}, []);
+	// Use mutations for create and delete
+	const createWorkspaceMutation = useMutation({
+		mutationFn: apiCreateWorkspace,
+		onSuccess: (newWorkspace) => {
+			// Invalidate and refetch workspaces
+			queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() });
+
+			// Set the new workspace as active
+			setActiveWorkspaceId(newWorkspace.id);
+
+			// Invalidate OpenCode queries for the new workspace
+			queryClient.invalidateQueries({ queryKey: opencodeKeys.all });
+		},
+	});
+
+	const deleteWorkspaceMutation = useMutation({
+		mutationFn: apiDeleteWorkspace,
+		onSuccess: (_, deletedId) => {
+			// Invalidate and refetch workspaces
+			queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() });
+
+			// Clear active workspace if it was deleted
+			if (activeWorkspaceId === deletedId) {
+				setActiveWorkspaceId(null);
+			}
+		},
+	});
 
 	const createWorkspace = useCallback(
 		async (data: CreateWorkspaceRequest) => {
-			try {
-				setIsLoading(true);
-				setError(null);
-				const newWorkspace = await apiCreateWorkspace(data);
-
-				// Add to local state
-				const workspace: GetWorkspaceResponse = {
-					id: newWorkspace.id,
-					repoUrl: newWorkspace.repoUrl,
-					branch: newWorkspace.branch,
-					status: newWorkspace.status,
-					createdAt: newWorkspace.createdAt,
-					updatedAt: newWorkspace.createdAt,
-				};
-
-				setWorkspaces((prev) => [...prev, workspace]);
-				setActiveWorkspaceId(workspace.id);
-
-				// Invalidate all OpenCode queries to refresh with new workspace environment
-				// This will refetch sessions, messages, providers, agents, config, etc.
-				await queryClient.invalidateQueries({ queryKey: opencodeKeys.all });
-			} catch (err) {
-				const message = err instanceof Error ? err.message : String(err);
-				setError(message);
-				throw err;
-			} finally {
-				setIsLoading(false);
-			}
+			await createWorkspaceMutation.mutateAsync(data);
 		},
-		[queryClient],
+		[createWorkspaceMutation],
 	);
 
 	const deleteWorkspace = useCallback(
 		async (id: string) => {
-			try {
-				setIsLoading(true);
-				setError(null);
-				await apiDeleteWorkspace(id);
-
-				// Remove from local state
-				setWorkspaces((prev) => prev.filter((w) => w.id !== id));
-
-				// Clear active workspace if it was deleted
-				if (activeWorkspaceId === id) {
-					setActiveWorkspaceId(null);
-				}
-			} catch (err) {
-				const message = err instanceof Error ? err.message : String(err);
-				setError(message);
-				throw err;
-			} finally {
-				setIsLoading(false);
-			}
+			await deleteWorkspaceMutation.mutateAsync(id);
 		},
-		[activeWorkspaceId],
+		[deleteWorkspaceMutation],
 	);
 
 	return (
@@ -126,7 +115,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 				setActiveWorkspaceId,
 				createWorkspace,
 				deleteWorkspace,
-				refreshWorkspaces,
 				isLoading,
 				error,
 			}}

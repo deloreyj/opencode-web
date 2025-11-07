@@ -65,3 +65,10 @@ export const DeleteWorkspaceResponseSchema = z.object({
 });
 
 export type DeleteWorkspaceResponse = z.infer<typeof DeleteWorkspaceResponseSchema>;
+
+export const GetWorkspaceDiffResponseSchema = z.object({
+	diff: z.string(),
+	workspaceId: z.string(),
+});
+
+export type GetWorkspaceDiffResponse = z.infer<typeof GetWorkspaceDiffResponseSchema>;
