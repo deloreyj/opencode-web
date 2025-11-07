@@ -63,7 +63,7 @@ export function WorkspaceCreateForm() {
 			}}
 		>
 			<DialogTrigger asChild>
-				<Button variant="outline" size="sm">
+				<Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
 					New Workspace
 				</Button>
 			</DialogTrigger>

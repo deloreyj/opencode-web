@@ -10,6 +10,7 @@ import {
   ConversationScrollButton,
   ConversationEmptyState,
 } from "@/components/ai-elements/conversation";
+import { PromptInputHeader } from "@/components/ai-elements/prompt-input";
 import {
   Message,
   MessageAvatar,
@@ -53,7 +54,7 @@ import {
   ToolContent,
 } from "@/components/ai-elements/tool";
 import { Loader } from "@/components/ai-elements/loader";
-import { CopyIcon, RefreshCcwIcon, MessageSquareIcon, MenuIcon, PlusIcon, ChevronDownIcon, CheckCircleIcon, XCircleIcon, WrenchIcon, ClockIcon } from "lucide-react";
+import { CopyIcon, RefreshCcwIcon, MessageSquareIcon, MenuIcon, PlusIcon, ChevronDownIcon, CheckCircleIcon, XCircleIcon, WrenchIcon, ClockIcon, SettingsIcon, GitCompareIcon, MonitorIcon } from "lucide-react";
 import { CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   useSessions,
@@ -77,6 +78,17 @@ import { AgentModeToggle } from "@/components/agent-mode-toggle";
 import { getToolContent } from "@/components/chat/tool-contents";
 import { WorkspaceSelector } from "@/components/workspace-selector";
 import { WorkspaceCreateForm } from "@/components/workspace-create-form";
+import { ApiKeySettings } from "@/components/api-key-settings";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+
+type ViewMode = "conversation" | "diff" | "preview";
 
 /**
  * Get status icon for tool call
@@ -94,10 +106,41 @@ function getToolStatusIcon(status: string) {
   }
 }
 
+/**
+ * Stub DiffViewer Component
+ */
+function DiffViewer() {
+  return (
+    <div className="flex h-full items-center justify-center p-4 text-muted-foreground">
+      <div className="text-center">
+        <GitCompareIcon className="mx-auto mb-4 size-12" />
+        <h3 className="mb-2 font-semibold text-lg">Git Diff Viewer</h3>
+        <p className="text-sm">Diff viewer implementation coming soon</p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Stub AppPreview Component
+ */
+function AppPreview() {
+  return (
+    <div className="flex h-full items-center justify-center p-4 text-muted-foreground">
+      <div className="text-center">
+        <MonitorIcon className="mx-auto mb-4 size-12" />
+        <h3 className="mb-2 font-semibold text-lg">UI Preview</h3>
+        <p className="text-sm">App preview implementation coming soon</p>
+      </div>
+    </div>
+  );
+}
+
 export function ChatPage() {
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>();
   const [input, setInput] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("conversation");
   const [selectedModel, setSelectedModel] = useState<{
     providerID: string;
     modelID: string;
@@ -245,6 +288,25 @@ export function ChatPage() {
     navigator.clipboard.writeText(text);
   }, []);
 
+  const cycleViewMode = useCallback(() => {
+    setViewMode((current) => {
+      if (current === "conversation") return "diff";
+      if (current === "diff") return "preview";
+      return "conversation";
+    });
+  }, []);
+
+  const getViewModeIcon = () => {
+    switch (viewMode) {
+      case "conversation":
+        return <MessageSquareIcon className="size-5" />;
+      case "diff":
+        return <GitCompareIcon className="size-5" />;
+      case "preview":
+        return <MonitorIcon className="size-5" />;
+    }
+  };
+
   const isLoading = sendMessage.isPending || messagesLoading;
 
   // Build available models list
@@ -288,6 +350,29 @@ export function ChatPage() {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 shrink-0 sm:h-10 sm:w-10"
+                >
+                  <SettingsIcon className="size-5" />
+                  <span className="sr-only">Settings</span>
+                </Button>
+              </SheetTrigger>
+              <SheetContent>
+                <SheetHeader>
+                  <SheetTitle>Settings</SheetTitle>
+                  <SheetDescription>
+                    Configure your OpenCode settings
+                  </SheetDescription>
+                </SheetHeader>
+                <div className="mt-6">
+                  <ApiKeySettings />
+                </div>
+              </SheetContent>
+            </Sheet>
             <ModeToggle />
             <Button
               variant="ghost"
@@ -315,9 +400,10 @@ export function ChatPage() {
         />
       </div>
 
-      {/* Messages */}
-      <Conversation className="flex-1">
-        <ConversationContent className="px-2 py-2 sm:px-4 sm:py-3">
+      {/* Content Area - Conversation, Diff, or Preview */}
+      {viewMode === "conversation" ? (
+        <Conversation className="flex-1">
+          <ConversationContent className="px-2 py-2 sm:px-4 sm:py-3">
           {messagesList.length === 0 && !isLoading ? (
             <ConversationEmptyState
               title="Start a conversation"
@@ -466,13 +552,36 @@ export function ChatPage() {
             </>
           )}
           {isLoading && <Loader />}
-        </ConversationContent>
-        <ConversationScrollButton />
-      </Conversation>
+          </ConversationContent>
+          <ConversationScrollButton />
+        </Conversation>
+      ) : viewMode === "diff" ? (
+        <div className="flex-1 overflow-auto">
+          <DiffViewer />
+        </div>
+      ) : (
+        <div className="flex-1 overflow-auto">
+          <AppPreview />
+        </div>
+      )}
 
       {/* Input - Mobile Optimized */}
       <div className="border-t bg-card p-2 sm:p-4">
         <PromptInput globalDrop multiple onSubmit={handleSubmit}>
+          <PromptInputHeader>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={cycleViewMode}
+              className="h-8 gap-2 sm:h-9"
+              title={`Switch view (current: ${viewMode})`}
+            >
+              {getViewModeIcon()}
+              <span className="text-xs font-medium sm:text-sm">
+                {viewMode === "conversation" ? "Chat" : viewMode === "diff" ? "Diff" : "App"}
+              </span>
+            </Button>
+          </PromptInputHeader>
           <PromptInputBody>
             <PromptInputAttachments>
               {(attachment) => <PromptInputAttachment data={attachment} />}
