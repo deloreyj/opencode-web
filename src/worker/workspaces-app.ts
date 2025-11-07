@@ -67,7 +67,7 @@ app.all("/:workspaceId/opencode/*", async (c) => {
 		}
 
 		// Proxy the request directly to the container worker running in the sandbox
-		return await proxyToWorkspaceSandbox(c, workspaceId, containerPath, workspaceMetadata);
+		return await proxyToWorkspaceSandbox(c, workspaceId, containerPath, workspaceMetadata, c.env);
 	} catch (error) {
 		console.error(`[Workspace Proxy] Error:`, error);
 		const statusCode = getErrorStatusCode(error);

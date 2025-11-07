@@ -13,6 +13,7 @@ COPY src/worker/container-worker.ts /opt/worker/container-worker.ts
 COPY src/worker/opencode-app.ts /opt/worker/opencode-app.ts
 COPY src/worker/utils /opt/worker/utils
 COPY src/types /opt/types
+COPY src/lib /opt/lib
 
 ENV NODE_EXTRA_CA_CERTS="/etc/ssl/certs/Cloudflare_CA.pem"
 
