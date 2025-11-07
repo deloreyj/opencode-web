@@ -4,7 +4,7 @@ import { getSandbox } from "@cloudflare/sandbox";
  * Forward request to container worker (Hono API) running inside the sandbox
  * The container worker then calls the local OpenCode server at localhost:4096
  *
- * Uses Cloudflare's getSandbox and containerFetch to properly route to the exposed port
+ * Uses Cloudflare Sandbox SDK's getSandbox and containerFetch methods
  *
  * @param c Hono context
  * @param workspaceId The workspace ID
@@ -37,16 +37,17 @@ export async function proxyToWorkspaceSandbox(
 	const sandbox = getSandbox(env.SANDBOX, workspaceId);
 
 	// Construct the full URL with query params
-	// containerFetch requires a full URL, so we use a dummy base
 	const url = new URL(c.req.url);
-	const targetUrl = new URL(path + url.search, 'http://localhost');
-	console.log(`[proxyToWorkspaceSandbox] Target URL: ${targetUrl.toString()}`);
+	const targetUrl = `http://localhost:8080${path}${url.search}`;
+	console.log(`[proxyToWorkspaceSandbox] Target URL: ${targetUrl}`);
 
 	try {
+		console.log(`[proxyToWorkspaceSandbox] Calling containerFetch...`);
+		
 		// Use containerFetch to route to the exposed port (8080)
-		// This method properly handles the routing without needing subdomain DNS resolution
+		// Port 8080 is where our container worker (Hono app) is running
 		const response = await sandbox.containerFetch(
-			targetUrl.toString(),
+			targetUrl,
 			{
 				method: c.req.method,
 				headers: c.req.raw.headers,
@@ -57,10 +58,18 @@ export async function proxyToWorkspaceSandbox(
 			8080 // Port where container worker is running
 		);
 
-		console.log(`[proxyToWorkspaceSandbox] Response status: ${response.status}`);
+		console.log(`[proxyToWorkspaceSandbox] Response received - status: ${response.status}, headers:`, Object.fromEntries(response.headers.entries()));
+		
+		// Check if this is a streaming response (SSE)
+		const contentType = response.headers.get('content-type');
+		const isSSE = contentType?.includes('text/event-stream');
+		
+		if (isSSE) {
+			console.log(`[proxyToWorkspaceSandbox] Detected SSE stream, passing through`);
+		}
 
-		// Clone and log response for debugging (only in dev)
-		if (process.env.NODE_ENV === 'development') {
+		// For non-streaming responses in dev, log preview
+		if (process.env.NODE_ENV === 'development' && !isSSE) {
 			const clonedResponse = response.clone();
 			try {
 				const text = await clonedResponse.text();

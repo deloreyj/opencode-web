@@ -3,9 +3,10 @@
  * Matches Go TUI behavior: updates messages in-place as events arrive
  */
 
-import { useCallback } from "react";
+import { useCallback, useRef, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useOpencodeEvents } from "./use-opencode-events";
+import { useWorkspace } from "@/lib/workspace-context";
 import {
   getMessageInfo,
   getPartInfo,
@@ -21,6 +22,7 @@ import {
 import type { OpencodeEvent } from "@/types/opencode-events";
 import type { MessageWithParts } from "@/types/opencode-messages";
 import { opencodeKeys } from "./use-opencode";
+import { useOpencodeClient } from "./use-opencode-client";
 
 export interface UseStreamingUpdatesOptions {
   /**
@@ -32,6 +34,11 @@ export interface UseStreamingUpdatesOptions {
    * Callback when streaming completes
    */
   onStreamComplete?: () => void;
+
+  /**
+   * Callback when a new session is auto-created
+   */
+  onSessionCreated?: (sessionId: string) => void;
 }
 
 /**
@@ -39,11 +46,54 @@ export interface UseStreamingUpdatesOptions {
  * Updates the React Query cache directly, following Go TUI pattern
  */
 export function useStreamingUpdates(options: UseStreamingUpdatesOptions) {
-  const { sessionId, onStreamComplete } = options;
+  const { sessionId, onStreamComplete, onSessionCreated } = options;
   const queryClient = useQueryClient();
+  const opencodeClient = useOpencodeClient();
+  const { activeWorkspaceId } = useWorkspace();
+  
+  // Track if we've already handled server.connected to prevent duplicates
+  const hasHandledServerConnected = useRef(false);
+  
+  // Reset the flag when workspace changes so we can create a session for the new workspace
+  useEffect(() => {
+    hasHandledServerConnected.current = false;
+  }, [activeWorkspaceId]);
 
   const handleEvent = useCallback(
-    (event: OpencodeEvent) => {
+    async (event: OpencodeEvent) => {
+      // Handle server.connected event - server is ready, create default session and refresh queries
+      if (event.type === "server.connected") {
+        // Only handle once per connection
+        if (hasHandledServerConnected.current) {
+          console.log("[Streaming] Server connected event already handled, skipping");
+          return;
+        }
+        hasHandledServerConnected.current = true;
+        
+        console.log("[Streaming] Server connected, creating default session and refreshing queries");
+        
+        // Proactively create a default session for new workspaces
+        try {
+          const { data: newSession, error } = await opencodeClient.session.create({
+            body: { title: "New Conversation" },
+          });
+          
+          if (newSession && !error) {
+            console.log("[Streaming] Created default session:", newSession.id);
+            // Notify parent component to set as active
+            onSessionCreated?.(newSession.id);
+          } else {
+            console.error("[Streaming] Failed to create default session:", error);
+          }
+        } catch (err) {
+          console.error("[Streaming] Error creating default session:", err);
+        }
+        
+        // Refresh all queries to get latest data from the server
+        queryClient.invalidateQueries({ queryKey: opencodeKeys.all });
+        return;
+      }
+
       if (!sessionId) return;
 
       // Handle message.updated event
@@ -91,7 +141,7 @@ export function useStreamingUpdates(options: UseStreamingUpdatesOptions) {
         return;
       }
     },
-    [sessionId, queryClient, onStreamComplete]
+    [sessionId, queryClient, onStreamComplete, onSessionCreated, opencodeClient]
   );
 
   const { connected, error, hasExceededRetries } = useOpencodeEvents({

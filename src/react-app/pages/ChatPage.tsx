@@ -328,17 +328,30 @@ export function ChatPage() {
   // Streaming - update messages in real-time via SSE events
   const { connected: sseConnected, hasExceededRetries } = useStreamingUpdates({
     sessionId: currentSessionId,
+    onSessionCreated: useCallback((sessionId: string) => {
+      console.log("[ChatPage] Auto-created session on server connect:", sessionId);
+      setCurrentSessionId(sessionId);
+    }, []),
   });
 
   // Session usage tracking
   const sessionUsage = useSessionUsage(currentSessionId);
 
-  // Set default session on mount
+  // Clear session immediately when workspace changes
+  // This prevents using a session ID from a different workspace
+  useEffect(() => {
+    console.log(`[ChatPage] Workspace changed to ${activeWorkspaceId}, clearing current session`);
+    setCurrentSessionId(undefined);
+  }, [activeWorkspaceId]);
+
+  // Auto-select first session when sessions list changes
+  // This runs after the workspace switch and sessions are loaded
   useEffect(() => {
     if (!currentSessionId && sessionsList.length > 0) {
+      console.log(`[ChatPage] Auto-selecting first session for workspace ${activeWorkspaceId}`);
       setCurrentSessionId(sessionsList[0].id);
     }
-  }, [sessionsList, currentSessionId]);
+  }, [sessionsList, currentSessionId, activeWorkspaceId]);
 
   // Set default model
   useEffect(() => {
@@ -395,8 +408,18 @@ export function ChatPage() {
         return;
       }
 
-      // Create session if none exists
+      // Validate session exists in current workspace
       let sessionId = currentSessionId;
+      if (sessionId && sessionsList.length > 0) {
+        const sessionExists = sessionsList.some(s => s.id === sessionId);
+        if (!sessionExists) {
+          console.warn(`[handleSubmit] Session ${sessionId} not found in current workspace, clearing`);
+          sessionId = undefined;
+          setCurrentSessionId(undefined);
+        }
+      }
+
+      // Create session if none exists
       if (!sessionId) {
         const session = await createSession.mutateAsync({
           title: message.text?.slice(0, 50) || "New Conversation",
@@ -442,7 +465,7 @@ export function ChatPage() {
 
       setInput("");
     },
-    [currentSessionId, selectedModel, selectedAgent, createSession, sendMessage],
+    [currentSessionId, sessionsList, selectedModel, selectedAgent, createSession, sendMessage],
   );
 
   const handleCopy = useCallback((text: string) => {
