@@ -410,10 +410,16 @@ export function useMessages(sessionId: string | undefined) {
     queryKey: sessionId ? opencodeKeys.messages(sessionId) : [],
     queryFn: async () => {
       if (!sessionId) return [];
+      console.log('[useMessages] Fetching messages for session:', sessionId);
       const { data, error } = await client.session.messages({
         path: { id: sessionId },
       });
-      if (error) throw error;
+      console.log('[useMessages] Response - data:', data, 'error:', error);
+      if (error) {
+        console.error('[useMessages] Error fetching messages:', error);
+        throw error;
+      }
+      console.log('[useMessages] Returning data:', Array.isArray(data) ? `array with ${data.length} messages` : typeof data);
       return data;
     },
     enabled: !!sessionId,

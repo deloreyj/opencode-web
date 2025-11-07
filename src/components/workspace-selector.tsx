@@ -45,13 +45,13 @@ export function WorkspaceSelector() {
 	}
 
 	return (
-		<div className="flex items-center gap-2">
+		<div className="flex items-center gap-2 flex-1 min-w-0">
 			<Select
 				value={activeWorkspaceId || ""}
 				onValueChange={setActiveWorkspaceId}
 				disabled={isLoading}
 			>
-				<SelectTrigger className="w-[300px]">
+				<SelectTrigger className="flex-1 min-w-0">
 					<SelectValue placeholder="Select workspace" />
 				</SelectTrigger>
 				<SelectContent>

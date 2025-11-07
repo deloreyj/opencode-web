@@ -8,16 +8,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { KeyIcon, CheckCircleIcon, XCircleIcon, Loader2Icon } from "lucide-react";
+import { CheckCircleIcon, XCircleIcon, Loader2Icon } from "lucide-react";
 import { useOpencodeClient } from "@/hooks/use-opencode-client";
 import { opencodeKeys } from "@/hooks/use-opencode";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
 
 export function ApiKeySettings() {
 	const [apiKey, setApiKey] = useState("");
@@ -70,50 +63,41 @@ export function ApiKeySettings() {
 	};
 
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle className="flex items-center gap-2">
-					<KeyIcon className="size-5" />
-					OpenCode API Key
-				</CardTitle>
-				<CardDescription>
-					Enter your OpenCode API key to authenticate with the sandbox environment
-				</CardDescription>
-			</CardHeader>
-			<CardContent>
-				<form onSubmit={handleSubmit} className="space-y-4">
-					<div className="space-y-2">
-						<Label htmlFor="api-key">API Key</Label>
-						<Input
-							id="api-key"
-							type="password"
-							value={apiKey}
-							onChange={(e) => setApiKey(e.target.value)}
-							disabled={isLoading}
-							className="font-mono"
-						/>
-					</div>
-
-					{status === "success" && (
-						<div className="flex items-center gap-2 rounded-md bg-green-500/10 p-3 text-green-600 text-sm">
-							<CheckCircleIcon className="size-4" />
-							<span>API key saved successfully</span>
-						</div>
-					)}
-
-					{status === "error" && (
-						<div className="flex items-center gap-2 rounded-md bg-red-500/10 p-3 text-red-600 text-sm">
-							<XCircleIcon className="size-4" />
-							<span>{errorMessage || "Failed to save API key"}</span>
-						</div>
-					)}
-
-					<Button type="submit" disabled={isLoading || !apiKey.trim()}>
+		<form onSubmit={handleSubmit} className="space-y-3">
+			<div className="space-y-2">
+				<Label htmlFor="api-key" className="text-sm">
+					Opencode Zen
+				</Label>
+				<div className="flex items-center gap-2">
+					<Input
+						id="api-key"
+						type="password"
+						value={apiKey}
+						onChange={(e) => setApiKey(e.target.value)}
+						disabled={isLoading}
+						className="flex-1 min-w-0 font-mono"
+						placeholder="Enter API key"
+					/>
+					<Button type="submit" disabled={isLoading || !apiKey.trim()} size="sm">
 						{isLoading && <Loader2Icon className="mr-2 size-4 animate-spin" />}
-						Save API Key
+						Save
 					</Button>
-				</form>
-			</CardContent>
-		</Card>
+				</div>
+			</div>
+
+			{status === "success" && (
+				<div className="flex items-center gap-2 rounded-md bg-green-500/10 p-2 text-green-600 text-xs">
+					<CheckCircleIcon className="size-3.5" />
+					<span>API key saved successfully</span>
+				</div>
+			)}
+
+			{status === "error" && (
+				<div className="flex items-center gap-2 rounded-md bg-red-500/10 p-2 text-red-600 text-xs">
+					<XCircleIcon className="size-3.5" />
+					<span>{errorMessage || "Failed to save API key"}</span>
+				</div>
+			)}
+		</form>
 	);
 }
