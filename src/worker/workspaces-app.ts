@@ -417,6 +417,75 @@ app.get("/:id/logs", async (c) => {
 	}
 });
 
+// Stage all changes in workspace
+app.post("/:id/stage-all", async (c) => {
+	try {
+		const workspaceId = c.req.param("id");
+
+		// Special case: "local" workspace for dev mode
+		// Call the local git diff server (port 4097)
+		if (workspaceId === "local") {
+			try {
+				const response = await fetch('http://127.0.0.1:4097/stage-all', {
+					method: 'POST',
+				});
+
+				if (!response.ok) {
+					throw new Error(`Git diff server responded with ${response.status}`);
+				}
+
+				const data = await response.json() as { success: boolean; message: string };
+
+				return c.json({
+					data: {
+						success: data.success,
+						message: data.message,
+					}
+				});
+			} catch (err: any) {
+				console.error('[Local Stage All Error]', err.message);
+				return c.json(
+					{ error: `Failed to stage changes: ${err.message}` },
+					500
+				);
+			}
+		}
+
+		// Get metadata for sandbox workspaces
+		const metadata = workspaceMetadata.get(workspaceId);
+		if (!metadata) {
+			return c.json(
+				{ error: `Workspace ${workspaceId} not found` },
+				404
+			);
+		}
+
+		// Get sandbox instance
+		const sandbox = getSandbox(c.env.SANDBOX, workspaceId);
+
+		// Run git add -A in the repository directory
+		const result = await sandbox.exec('git', {
+			args: ['add', '-A'],
+			cwd: '/workspace/repo'
+		});
+
+		if (result.exitCode !== 0) {
+			throw new Error(`git add failed: ${result.stderr}`);
+		}
+
+		return c.json({
+			data: {
+				success: true,
+				message: 'All changes staged',
+			}
+		});
+	} catch (error) {
+		console.error('[Workspace Stage All Error]', error);
+		const statusCode = getErrorStatusCode(error);
+		return c.json(createErrorResponse(error, "POST /:id/stage-all"), statusCode);
+	}
+});
+
 // Get workspace git diff
 app.get("/:id/diff", async (c) => {
 	try {
@@ -482,6 +551,179 @@ app.get("/:id/diff", async (c) => {
 		console.error('[Workspace Diff Error]', error);
 		const statusCode = getErrorStatusCode(error);
 		return c.json(createErrorResponse(error, "GET /:id/diff"), statusCode);
+	}
+});
+
+// Get git status for a workspace
+app.get("/:id/status", async (c) => {
+	try {
+		const workspaceId = c.req.param('id');
+		console.log(`[Workspace ${workspaceId}] Getting git status`);
+
+		// Special case: "local" workspace for dev mode
+		if (workspaceId === "local") {
+			// Call local git diff server
+			const response = await fetch('http://127.0.0.1:4097/status');
+			if (!response.ok) {
+				throw new Error(`Git status server error: ${response.statusText}`);
+			}
+			const data = await response.json() as { status: string };
+			return c.json({
+				data: {
+					status: data.status,
+					workspaceId,
+				}
+			});
+		}
+
+		// Get metadata for sandbox workspaces
+		const metadata = workspaceMetadata.get(workspaceId);
+		if (!metadata) {
+			return c.json(
+				{ error: `Workspace ${workspaceId} not found` },
+				404
+			);
+		}
+
+		// Get sandbox instance
+		const sandbox = getSandbox(c.env.SANDBOX, workspaceId);
+
+		// Run git status in the repository directory
+		const result = await sandbox.exec('git', {
+			args: ['status', '--porcelain'],
+			cwd: '/workspace/repo'
+		});
+
+		const status = result.stdout || "";
+
+		return c.json({
+			data: {
+				status,
+				workspaceId,
+			}
+		});
+	} catch (error) {
+		console.error('[Workspace Status Error]', error);
+		const statusCode = getErrorStatusCode(error);
+		return c.json(createErrorResponse(error, "GET /:id/status"), statusCode);
+	}
+});
+
+// Stage a single file
+app.post("/:id/stage", async (c) => {
+	try {
+		const workspaceId = c.req.param('id');
+		const body = await c.req.json();
+		const { filepath } = body;
+
+		if (!filepath) {
+			return c.json({ error: 'filepath is required' }, 400);
+		}
+
+		console.log(`[Workspace ${workspaceId}] Staging file: ${filepath}`);
+
+		// Special case: "local" workspace for dev mode
+		if (workspaceId === "local") {
+			const response = await fetch('http://127.0.0.1:4097/stage', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ filepath }),
+			});
+			if (!response.ok) {
+				const error = await response.json();
+				throw new Error(error.error || 'Failed to stage file');
+			}
+			const data = await response.json();
+			return c.json({ data });
+		}
+
+		// Get metadata for sandbox workspaces
+		const metadata = workspaceMetadata.get(workspaceId);
+		if (!metadata) {
+			return c.json(
+				{ error: `Workspace ${workspaceId} not found` },
+				404
+			);
+		}
+
+		// Get sandbox instance
+		const sandbox = getSandbox(c.env.SANDBOX, workspaceId);
+
+		// Stage the file
+		await sandbox.exec('git', {
+			args: ['add', filepath],
+			cwd: '/workspace/repo'
+		});
+
+		return c.json({
+			data: {
+				success: true,
+				message: `Staged ${filepath}`,
+			}
+		});
+	} catch (error) {
+		console.error('[Workspace Stage Error]', error);
+		const statusCode = getErrorStatusCode(error);
+		return c.json(createErrorResponse(error, "POST /:id/stage"), statusCode);
+	}
+});
+
+// Unstage a single file
+app.post("/:id/unstage", async (c) => {
+	try {
+		const workspaceId = c.req.param('id');
+		const body = await c.req.json();
+		const { filepath } = body;
+
+		if (!filepath) {
+			return c.json({ error: 'filepath is required' }, 400);
+		}
+
+		console.log(`[Workspace ${workspaceId}] Unstaging file: ${filepath}`);
+
+		// Special case: "local" workspace for dev mode
+		if (workspaceId === "local") {
+			const response = await fetch('http://127.0.0.1:4097/unstage', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ filepath }),
+			});
+			if (!response.ok) {
+				const error = await response.json();
+				throw new Error(error.error || 'Failed to unstage file');
+			}
+			const data = await response.json();
+			return c.json({ data });
+		}
+
+		// Get metadata for sandbox workspaces
+		const metadata = workspaceMetadata.get(workspaceId);
+		if (!metadata) {
+			return c.json(
+				{ error: `Workspace ${workspaceId} not found` },
+				404
+			);
+		}
+
+		// Get sandbox instance
+		const sandbox = getSandbox(c.env.SANDBOX, workspaceId);
+
+		// Unstage the file
+		await sandbox.exec('git', {
+			args: ['restore', '--staged', filepath],
+			cwd: '/workspace/repo'
+		});
+
+		return c.json({
+			data: {
+				success: true,
+				message: `Unstaged ${filepath}`,
+			}
+		});
+	} catch (error) {
+		console.error('[Workspace Unstage Error]', error);
+		const statusCode = getErrorStatusCode(error);
+		return c.json(createErrorResponse(error, "POST /:id/unstage"), statusCode);
 	}
 });
 
