@@ -31,16 +31,11 @@
   - [x] Move `message-cache-utils.test.ts` → `src/lib/`
   - [x] Move `use-streaming-updates.test.ts` → `src/hooks/`
 
-### 1.2 Logging Standardization ✅
-Replace all `console.log/error` with logger utility:
-- [x] `src/worker/opencode-app.ts` (8 occurrences)
-- [x] `src/worker/workspaces-app.ts` (17 occurrences)
-- [x] `src/worker/utils/proxyToWorkspaceSandbox.ts` (7 occurrences)
-- [x] `src/hooks/use-opencode-events.ts` (11 occurrences)
-- [x] `src/hooks/use-streaming-updates.ts` (7 occurrences)
-- [x] `src/hooks/use-opencode.ts` (5 occurrences)
-- [x] `src/react-app/pages/ChatPage.tsx` (8 occurrences)
-- [x] Simplified logger for browser/worker compatibility
+### 1.2 Logging (Reverted) ❌
+- [x] ~~Replace console with logger utility~~ **Reverted**
+- [x] Decided logger provided zero value (just a pass-through)
+- [x] Kept console.log/error/warn directly
+- [x] Cloudflare Workers observability captures console natively
 
 ### 1.3 Critical Deduplication ✅
 - [x] **Remove duplicate error utilities in `opencode-app.ts`** (lines 27-121, 98 lines removed)
@@ -60,11 +55,11 @@ Replace all `console.log/error` with logger utility:
 
 **Actual Impact**: 
 - ✅ Removed 240+ lines of dead/duplicate code
-- ✅ Standardized 63 console statements → logger
 - ✅ Fixed 5 critical type safety issues (all `as any` and `@ts-ignore`)
 - ✅ All tests passing, type check clean, build successful
+- ✅ Kept console.log/error/warn (logger abstraction removed as it provided no value)
 
-**Commits**: 8 commits on `chore/phase-1-quick-wins`
+**Commits**: 7 commits on `chore/phase-1-quick-wins`
 
 ---
 
