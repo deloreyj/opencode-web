@@ -52,7 +52,7 @@ function createErrorResponse(error: unknown, context?: string) {
 	}
 
 	// Log error
-	console.error('[OpenCode API Error]', {
+	logger.error('[OpenCode API Error]', {
 		context,
 		message: errorMessage,
 		error: errorDetails,
@@ -468,13 +468,13 @@ export function createOpencodeApp(config: AppConfig) {
 	// ========================================
 	app.get("/event", async () => {
 		try {
-			console.log('[OpenCode SSE] Client connecting to events endpoint');
+			logger.debug('[OpenCode SSE] Client connecting to events endpoint');
 
 			const result = await opencodeClient.event.subscribe();
 
 			// Check if stream exists
 			if (!result.stream) {
-				console.error('[OpenCode SSE] No stream in result');
+				logger.error('[OpenCode SSE] No stream in result');
 				return new Response(
 					`data: ${JSON.stringify({ error: 'No stream available' })}\n\n`,
 					{
@@ -488,7 +488,7 @@ export function createOpencodeApp(config: AppConfig) {
 				);
 			}
 
-			console.log('[OpenCode SSE] Converting AsyncGenerator to ReadableStream');
+			logger.debug('[OpenCode SSE] Converting AsyncGenerator to ReadableStream');
 
 			// Convert AsyncGenerator to ReadableStream
 			// The SDK returns an AsyncGenerator, not a ReadableStream
@@ -497,17 +497,17 @@ export function createOpencodeApp(config: AppConfig) {
 				async start(controller) {
 					const encoder = new TextEncoder();
 					try {
-						console.log('[OpenCode SSE] Starting stream iteration');
+						logger.debug('[OpenCode SSE] Starting stream iteration');
 						for await (const event of result.stream) {
-							console.log('[OpenCode SSE] Received event:', event.type);
+							logger.debug('[OpenCode SSE] Received event:', event.type);
 							// Format as SSE: data: {json}\n\n
 							const data = `data: ${JSON.stringify(event)}\n\n`;
 							controller.enqueue(encoder.encode(data));
 						}
-						console.log('[OpenCode SSE] Stream completed');
+						logger.debug('[OpenCode SSE] Stream completed');
 						controller.close();
 					} catch (error) {
-						console.error('[OpenCode SSE] Stream error:', error);
+						logger.error('[OpenCode SSE] Stream error:', error);
 						controller.error(error);
 					}
 				},
@@ -521,7 +521,7 @@ export function createOpencodeApp(config: AppConfig) {
 				},
 			});
 		} catch (error) {
-			console.error('[OpenCode SSE] Connection error:', {
+			logger.error('[OpenCode SSE] Connection error:', {
 				error: error instanceof Error ? error.message : String(error),
 				stack: error instanceof Error ? error.stack : undefined,
 				timestamp: new Date().toISOString(),
