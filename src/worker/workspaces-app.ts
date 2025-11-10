@@ -9,17 +9,28 @@ import {
 	type ListWorkspacesResponse,
 	type GetWorkspaceResponse,
 	type DeleteWorkspaceResponse,
+	type WorkspaceStatus,
 } from "../types/workspace-schemas";
 import { proxyToWorkspaceSandbox } from "./utils/proxyToWorkspaceSandbox";
 import { createErrorResponse } from "./utils/createErrorResponse";
 import { getErrorStatusCode } from "./utils/getErrorStatusCode";
 import { logger } from "../lib/logger";
 
+// Extended process type that includes stdout/stderr
+// The @cloudflare/sandbox SDK returns these but they're not in the base type
+interface ProcessWithOutput {
+	id: string;
+	status: string;
+	exitCode?: number;
+	stdout?: string;
+	stderr?: string;
+}
+
 // Store workspace metadata by workspace ID (in-memory for now)
 export const workspaceMetadata = new Map<string, {
 	repoUrl: string;
 	branch: string;
-	status: string;
+	status: WorkspaceStatus;
 	createdAt: string;
 	opencodeUrl: string;
 	containerWorkerProcessId?: string;
@@ -284,7 +295,7 @@ app.get("", async (c) => {
 				id,
 				repoUrl: metadata.repoUrl,
 				branch: metadata.branch,
-				status: metadata.status as any,
+				status: metadata.status,
 				opencodeUrl: metadata.opencodeUrl,
 				createdAt: metadata.createdAt,
 				updatedAt: metadata.createdAt,
@@ -335,7 +346,7 @@ app.get("/:id", async (c) => {
 				id: workspaceId,
 				repoUrl: metadata.repoUrl,
 				branch: metadata.branch,
-				status: metadata.status as any,
+				status: metadata.status,
 				opencodeUrl: metadata.opencodeUrl,
 				createdAt: metadata.createdAt,
 				updatedAt: metadata.createdAt,
@@ -410,7 +421,7 @@ app.get("/:id/logs", async (c) => {
 		const sandbox = getSandbox(c.env.SANDBOX, workspaceId);
 
 		// Get process status and output
-		const process = await sandbox.getProcess(processId);
+		const process = await sandbox.getProcess(processId) as ProcessWithOutput | null;
 
 		if (!process) {
 			return c.json(
@@ -425,8 +436,8 @@ app.get("/:id/logs", async (c) => {
 				processType,
 				status: process.status,
 				exitCode: process.exitCode,
-				stdout: (process as any).stdout || "",
-				stderr: (process as any).stderr || "",
+				stdout: process.stdout || "",
+				stderr: process.stderr || "",
 			}
 		});
 	} catch (error) {
