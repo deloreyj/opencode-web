@@ -7,7 +7,6 @@ import { useCallback, useRef, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useOpencodeEvents } from "./use-opencode-events";
 import { useWorkspace } from "@/lib/workspace-context";
-import { logger } from "@/lib/logger";
 import {
   getMessageInfo,
   getPartInfo,
@@ -66,12 +65,12 @@ export function useStreamingUpdates(options: UseStreamingUpdatesOptions) {
       if (event.type === "server.connected") {
         // Only handle once per connection
         if (hasHandledServerConnected.current) {
-          logger.debug("[Streaming] Server connected event already handled, skipping");
+          console.log("[Streaming] Server connected event already handled, skipping");
           return;
         }
         hasHandledServerConnected.current = true;
         
-        logger.debug("[Streaming] Server connected, creating default session and refreshing queries");
+        console.log("[Streaming] Server connected, creating default session and refreshing queries");
         
         // Proactively create a default session for new workspaces
         try {
@@ -80,14 +79,14 @@ export function useStreamingUpdates(options: UseStreamingUpdatesOptions) {
           });
           
           if (newSession && !error) {
-            logger.debug("[Streaming] Created default session:", newSession.id);
+            console.log("[Streaming] Created default session:", newSession.id);
             // Notify parent component to set as active
             onSessionCreated?.(newSession.id);
           } else {
-            logger.error("[Streaming] Failed to create default session:", error);
+            console.error("[Streaming] Failed to create default session:", error);
           }
         } catch (err) {
-          logger.error("[Streaming] Error creating default session:", err);
+          console.error("[Streaming] Error creating default session:", err);
         }
         
         // Refresh all queries to get latest data from the server
@@ -131,14 +130,14 @@ export function useStreamingUpdates(options: UseStreamingUpdatesOptions) {
 
       // Handle session.idle event
       if (isSessionIdleEvent(event)) {
-        logger.debug("[Streaming] Session idle, streaming complete");
+        console.log("[Streaming] Session idle, streaming complete");
         onStreamComplete?.();
         return;
       }
 
       // Handle session.error event
       if (isSessionErrorEvent(event)) {
-        logger.error("[Streaming] Session error", event.properties);
+        console.error("[Streaming] Session error", event.properties);
         return;
       }
     },

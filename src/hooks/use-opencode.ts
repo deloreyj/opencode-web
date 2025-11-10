@@ -5,7 +5,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useOpencodeClient } from "@/hooks/use-opencode-client";
 import { useWorkspace } from "@/lib/workspace-context";
-import { logger } from "@/lib/logger";
 import type {
   CreateSessionRequest,
   UpdateSessionRequest,
@@ -420,16 +419,16 @@ export function useMessages(sessionId: string | undefined) {
     queryKey: sessionId ? opencodeKeys.messages(sessionId) : [],
     queryFn: async () => {
       if (!sessionId) return [];
-      logger.debug('[useMessages] Fetching messages for session:', sessionId);
+      console.log('[useMessages] Fetching messages for session:', sessionId);
       const { data, error } = await client.session.messages({
         path: { id: sessionId },
       });
-      logger.debug('[useMessages] Response - data:', data, 'error:', error);
+      console.log('[useMessages] Response - data:', data, 'error:', error);
       if (error) {
-        logger.error('[useMessages] Error fetching messages:', error);
+        console.error('[useMessages] Error fetching messages:', error);
         throw error;
       }
-      logger.debug('[useMessages] Returning data:', Array.isArray(data) ? `array with ${data.length} messages` : typeof data);
+      console.log('[useMessages] Returning data:', Array.isArray(data) ? `array with ${data.length} messages` : typeof data);
       return data;
     },
     enabled: !!sessionId,

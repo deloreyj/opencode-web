@@ -1,5 +1,4 @@
 import { getSandbox } from "@cloudflare/sandbox";
-import { logger } from "../../lib/logger";
 
 /**
  * Forward request to container worker (Hono API) running inside the sandbox
@@ -32,7 +31,7 @@ export async function proxyToWorkspaceSandbox(
 		);
 	}
 
-	logger.debug(`[proxyToWorkspaceSandbox] Proxying to workspace ${workspaceId}, path: ${path}`);
+	console.log(`[proxyToWorkspaceSandbox] Proxying to workspace ${workspaceId}, path: ${path}`);
 
 	// Get the sandbox instance
 	const sandbox = getSandbox(env.SANDBOX, workspaceId);
@@ -40,10 +39,10 @@ export async function proxyToWorkspaceSandbox(
 	// Construct the full URL with query params
 	const url = new URL(c.req.url);
 	const targetUrl = `http://localhost:8080${path}${url.search}`;
-	logger.debug(`[proxyToWorkspaceSandbox] Target URL: ${targetUrl}`);
+	console.log(`[proxyToWorkspaceSandbox] Target URL: ${targetUrl}`);
 
 	try {
-		logger.debug(`[proxyToWorkspaceSandbox] Calling containerFetch...`);
+		console.log(`[proxyToWorkspaceSandbox] Calling containerFetch...`);
 		
 		// Use containerFetch to route to the exposed port (8080)
 		// Port 8080 is where our container worker (Hono app) is running
@@ -61,14 +60,14 @@ export async function proxyToWorkspaceSandbox(
 			8080 // Port where container worker is running
 		);
 
-		logger.debug(`[proxyToWorkspaceSandbox] Response received - status: ${response.status}, headers:`, Object.fromEntries(response.headers.entries()));
+		console.log(`[proxyToWorkspaceSandbox] Response received - status: ${response.status}, headers:`, Object.fromEntries(response.headers.entries()));
 		
 		// Check if this is a streaming response (SSE)
 		const contentType = response.headers.get('content-type');
 		const isSSE = contentType?.includes('text/event-stream');
 		
 		if (isSSE) {
-			logger.debug(`[proxyToWorkspaceSandbox] Detected SSE stream, passing through`);
+			console.log(`[proxyToWorkspaceSandbox] Detected SSE stream, passing through`);
 		}
 
 		// For non-streaming responses in dev, log preview
@@ -76,15 +75,15 @@ export async function proxyToWorkspaceSandbox(
 			const clonedResponse = response.clone();
 			try {
 				const text = await clonedResponse.text();
-				logger.debug(`[proxyToWorkspaceSandbox] Response preview:`, text.substring(0, 200));
+				console.log(`[proxyToWorkspaceSandbox] Response preview:`, text.substring(0, 200));
 			} catch (e) {
-				logger.debug(`[proxyToWorkspaceSandbox] Could not read response for logging`);
+				console.log(`[proxyToWorkspaceSandbox] Could not read response for logging`);
 			}
 		}
 
 		return response;
 	} catch (error) {
-		logger.error(`[proxyToWorkspaceSandbox] Request failed:`, error);
+		console.error(`[proxyToWorkspaceSandbox] Request failed:`, error);
 		return new Response(
 			JSON.stringify({ 
 				error: `Failed to proxy request: ${error instanceof Error ? error.message : String(error)}` 
