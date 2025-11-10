@@ -47,15 +47,17 @@ export async function proxyToWorkspaceSandbox(
 		
 		// Use containerFetch to route to the exposed port (8080)
 		// Port 8080 is where our container worker (Hono app) is running
+		// Note: duplex option is needed for streaming request bodies but not in standard RequestInit type
+		const fetchOptions: RequestInit & { duplex?: 'half' } = {
+			method: c.req.method,
+			headers: c.req.raw.headers,
+			body: c.req.method !== 'GET' && c.req.method !== 'HEAD' ? c.req.raw.body : undefined,
+			duplex: c.req.method !== 'GET' && c.req.method !== 'HEAD' ? 'half' : undefined,
+		};
+		
 		const response = await sandbox.containerFetch(
 			targetUrl,
-			{
-				method: c.req.method,
-				headers: c.req.raw.headers,
-				body: c.req.method !== 'GET' && c.req.method !== 'HEAD' ? c.req.raw.body : undefined,
-				// @ts-ignore - duplex is needed for streaming request bodies
-				duplex: c.req.method !== 'GET' && c.req.method !== 'HEAD' ? 'half' : undefined,
-			},
+			fetchOptions,
 			8080 // Port where container worker is running
 		);
 
