@@ -4,8 +4,9 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { createOpencodeClient } from "@opencode-ai/sdk/client";
-import { z } from "zod";
 import { logger } from "../lib/logger";
+import { createErrorResponse } from "./utils/createErrorResponse";
+import { getErrorStatusCode } from "./utils/getErrorStatusCode";
 import {
 	CreateSessionRequestSchema,
 	UpdateSessionRequestSchema,
@@ -21,103 +22,6 @@ import {
 // Configuration for creating the app
 export interface AppConfig {
 	opencodeBaseUrl: string; // URL to the OpenCode server (e.g., "http://localhost:4096")
-}
-
-// Standard error response helper
-function createErrorResponse(error: unknown, context?: string) {
-	let errorMessage: string;
-	let errorDetails: any = {};
-
-	// Format Zod validation errors nicely
-	if (error instanceof z.ZodError) {
-		const fieldErrors = error.errors.map(err => {
-			const path = err.path.join('.');
-			return `${path}: ${err.message}`;
-		});
-
-		errorMessage = fieldErrors.length === 1
-			? fieldErrors[0]
-			: `Validation failed: ${fieldErrors.join(', ')}`;
-
-		errorDetails = {
-			validationErrors: error.errors.map(err => ({
-				field: err.path.join('.'),
-				message: err.message,
-				code: err.code,
-			})),
-		};
-	} else {
-		errorMessage = error instanceof Error ? error.message : String(error);
-		errorDetails = typeof error === 'object' && error !== null ? error : {};
-	}
-
-	// Log error
-	logger.error('[OpenCode API Error]', {
-		context,
-		message: errorMessage,
-		error: errorDetails,
-		timestamp: new Date().toISOString(),
-	});
-
-	return {
-		error: {
-			message: errorMessage,
-			...errorDetails,
-		},
-	};
-}
-
-// Determine appropriate HTTP status code from error
-function getErrorStatusCode(error: unknown): 400 | 401 | 403 | 404 | 500 {
-	// Zod validation errors
-	if (error instanceof z.ZodError) {
-		return 400;
-	}
-
-	if (typeof error === 'object' && error !== null) {
-		const err = error as any;
-
-		// Check for explicit status code (validate it's one we support)
-		if (typeof err.status === 'number') {
-			const status = err.status;
-			if (status === 400 || status === 401 || status === 403 || status === 404 || status === 500) {
-				return status;
-			}
-		}
-
-		// Check for HTTP status in response (validate it's one we support)
-		if (typeof err.response?.status === 'number') {
-			const status = err.response.status;
-			if (status === 400 || status === 401 || status === 403 || status === 404 || status === 500) {
-				return status;
-			}
-		}
-
-		// Infer from error message/type
-		const message = (err.message || '').toLowerCase();
-
-		// Validation errors
-		if (message.includes('validation') || message.includes('invalid') || message.includes('required')) {
-			return 400;
-		}
-
-		// Not found errors
-		if (message.includes('not found') || message.includes('does not exist')) {
-			return 404;
-		}
-
-		// Authentication/Authorization errors
-		if (message.includes('unauthorized') || message.includes('authentication')) {
-			return 401;
-		}
-
-		if (message.includes('forbidden') || message.includes('permission')) {
-			return 403;
-		}
-	}
-
-	// Default to 500 for unknown errors
-	return 500;
 }
 
 // Handler factory to reduce boilerplate
