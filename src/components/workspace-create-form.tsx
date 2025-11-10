@@ -25,7 +25,7 @@ import {
 
 const formSchema = z.object({
 	repoUrl: z.string().url("Must be a valid repository URL"),
-	branch: z.string().min(1, "Branch name is required").default("main"),
+	branch: z.string().min(1, "Branch name is required"),
 });
 
 type FormData = z.infer<typeof formSchema>;

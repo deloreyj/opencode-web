@@ -4,6 +4,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useOpencodeClient } from "@/hooks/use-opencode-client";
+import { useWorkspace } from "@/lib/workspace-context";
 import type {
   CreateSessionRequest,
   UpdateSessionRequest,
@@ -75,10 +76,11 @@ export function useAppLog() {
 }
 
 /**
- * Hook to get available agents
+ * Hook to get all agents
  */
 export function useAgents() {
   const client = useOpencodeClient();
+  const { activeWorkspaceId } = useWorkspace();
   return useQuery({
     queryKey: opencodeKeys.agents(),
     queryFn: async () => {
@@ -86,6 +88,7 @@ export function useAgents() {
       if (error) throw error;
       return data;
     },
+    enabled: !!activeWorkspaceId, // Only fetch when workspace is selected
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
@@ -155,6 +158,7 @@ export function usePath() {
  */
 export function useOpencodeConfig() {
   const client = useOpencodeClient();
+  const { activeWorkspaceId } = useWorkspace();
   return useQuery({
     queryKey: opencodeKeys.config(),
     queryFn: async () => {
@@ -162,6 +166,7 @@ export function useOpencodeConfig() {
       if (error) throw error;
       return data;
     },
+    enabled: !!activeWorkspaceId, // Only fetch when workspace is selected
     staleTime: 60 * 1000, // 1 minute
   });
 }
@@ -171,6 +176,7 @@ export function useOpencodeConfig() {
  */
 export function useProviders() {
   const client = useOpencodeClient();
+  const { activeWorkspaceId } = useWorkspace();
   return useQuery({
     queryKey: opencodeKeys.providers(),
     queryFn: async () => {
@@ -178,6 +184,7 @@ export function useProviders() {
       if (error) throw error;
       return data;
     },
+    enabled: !!activeWorkspaceId, // Only fetch when workspace is selected
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
@@ -191,6 +198,7 @@ export function useProviders() {
  */
 export function useSessions() {
   const client = useOpencodeClient();
+  const { activeWorkspaceId } = useWorkspace();
   return useQuery({
     queryKey: opencodeKeys.sessions(),
     queryFn: async () => {
@@ -198,6 +206,7 @@ export function useSessions() {
       if (error) throw error;
       return data;
     },
+    enabled: !!activeWorkspaceId, // Only fetch when workspace is selected
     staleTime: 5 * 1000, // 5 seconds
   });
 }

@@ -26,9 +26,9 @@ class Logger {
   constructor() {
     // Detect if running in container by checking environment
     // In container, OPENCODE_URL will be localhost, in dev it will be from env
-    this.isContainer = typeof process !== 'undefined' &&
+    this.isContainer = !!(typeof process !== 'undefined' &&
                       (process.env.CONTAINER_MODE === 'true' ||
-                       process.env.OPENCODE_URL?.includes('localhost:4096'));
+                       process.env.OPENCODE_URL?.includes('localhost:4096')));
 
     if (this.isContainer) {
       // In container, write to /workspace/logs directory

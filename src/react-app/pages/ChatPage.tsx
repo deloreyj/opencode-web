@@ -54,7 +54,7 @@ import {
   ToolContent,
 } from "@/components/ai-elements/tool";
 import { Loader } from "@/components/ai-elements/loader";
-import { CopyIcon, RefreshCcwIcon, MessageSquareIcon, MenuIcon, PlusIcon, ChevronDownIcon, CheckCircleIcon, XCircleIcon, WrenchIcon, ClockIcon, SettingsIcon, GitCompareIcon, MonitorIcon, HistoryIcon, XIcon } from "lucide-react";
+import { CopyIcon, RefreshCcwIcon, MessageSquareIcon, ChevronDownIcon, CheckCircleIcon, XCircleIcon, WrenchIcon, ClockIcon, SettingsIcon, GitCompareIcon, MonitorIcon, HistoryIcon, XIcon } from "lucide-react";
 import { CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   useSessions,
@@ -83,7 +83,6 @@ import {
   Drawer,
   DrawerClose,
   DrawerContent,
-  DrawerDescription,
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
