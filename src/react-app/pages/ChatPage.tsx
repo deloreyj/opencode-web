@@ -90,7 +90,6 @@ import { DiffViewer as DiffViewerComponent } from "@/components/blocks/diff-view
 import { useWorkspaceDiff } from "@/hooks/use-workspace-diff";
 import { useWorkspaceStatus } from "@/hooks/use-workspace-status";
 import { useWorkspace } from "@/lib/workspace-context";
-import { logger } from "@/lib/logger";
 import { stageAllChanges, stageFile, unstageFile } from "@/lib/workspace-client";
 import { useQueryClient } from "@tanstack/react-query";
 import { workspaceDiffKeys } from "@/hooks/use-workspace-diff";
@@ -329,7 +328,7 @@ export function ChatPage() {
   const { connected: sseConnected, hasExceededRetries } = useStreamingUpdates({
     sessionId: currentSessionId,
     onSessionCreated: useCallback((sessionId: string) => {
-      logger.debug("[ChatPage] Auto-created session on server connect:", sessionId);
+      console.log("[ChatPage] Auto-created session on server connect:", sessionId);
       setCurrentSessionId(sessionId);
     }, []),
   });
@@ -340,7 +339,7 @@ export function ChatPage() {
   // Clear session immediately when workspace changes
   // This prevents using a session ID from a different workspace
   useEffect(() => {
-    logger.debug(`[ChatPage] Workspace changed to ${activeWorkspaceId}, clearing current session`);
+    console.log(`[ChatPage] Workspace changed to ${activeWorkspaceId}, clearing current session`);
     setCurrentSessionId(undefined);
   }, [activeWorkspaceId]);
 
@@ -348,7 +347,7 @@ export function ChatPage() {
   // This runs after the workspace switch and sessions are loaded
   useEffect(() => {
     if (!currentSessionId && sessionsList.length > 0) {
-      logger.debug(`[ChatPage] Auto-selecting first session for workspace ${activeWorkspaceId}`);
+      console.log(`[ChatPage] Auto-selecting first session for workspace ${activeWorkspaceId}`);
       setCurrentSessionId(sessionsList[0].id);
     }
   }, [sessionsList, currentSessionId, activeWorkspaceId]);
@@ -727,7 +726,7 @@ export function ChatPage() {
                       </Action>
                       <Action
                         onClick={() => {
-                          logger.debug("Regenerate not yet implemented");
+                          console.log("Regenerate not yet implemented");
                         }}
                         label="Regenerate"
                       >

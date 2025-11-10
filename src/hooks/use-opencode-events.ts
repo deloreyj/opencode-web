@@ -7,7 +7,6 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import type { OpencodeEvent } from "@/types/opencode-events";
 import { isEventForSession } from "./opencode-event-utils";
 import { useWorkspace } from "@/lib/workspace-context";
-import { logger } from "@/lib/logger";
 
 export interface OpencodeEventsState {
   connected: boolean;
@@ -106,7 +105,7 @@ export function useOpencodeEvents(options: UseOpencodeEventsOptions = {}) {
 
     // Check if max retries exceeded
     if (failedAttemptsRef.current >= maxRetries) {
-      logger.warn(`[OpenCode SSE] Max retries (${maxRetries}) exceeded, giving up`);
+      console.warn(`[OpenCode SSE] Max retries (${maxRetries}) exceeded, giving up`);
       setState((prev) => ({
         ...prev,
         hasExceededRetries: true,
@@ -121,7 +120,7 @@ export function useOpencodeEvents(options: UseOpencodeEventsOptions = {}) {
         ? `/api/workspaces/${activeWorkspaceId}/opencode/event`
         : "/api/opencode/event";
 
-      logger.debug("[OpenCode SSE] Connecting...", {
+      console.log("[OpenCode SSE] Connecting...", {
         url: eventUrl,
         attempt: failedAttemptsRef.current + 1,
         maxRetries,
@@ -129,7 +128,7 @@ export function useOpencodeEvents(options: UseOpencodeEventsOptions = {}) {
       const eventSource = new EventSource(eventUrl);
 
       eventSource.onopen = () => {
-        logger.debug("[OpenCode SSE] Connected");
+        console.log("[OpenCode SSE] Connected");
         setState((prev) => ({
           ...prev,
           connected: true,
@@ -144,7 +143,7 @@ export function useOpencodeEvents(options: UseOpencodeEventsOptions = {}) {
 
           // Reset failed attempts on first successful message
           if (failedAttemptsRef.current > 0) {
-            logger.debug("[OpenCode SSE] Received first message, resetting retry counter");
+            console.log("[OpenCode SSE] Received first message, resetting retry counter");
             failedAttemptsRef.current = 0;
             setState((prev) => ({
               ...prev,
@@ -158,17 +157,17 @@ export function useOpencodeEvents(options: UseOpencodeEventsOptions = {}) {
             return;
           }
 
-          logger.debug("[OpenCode SSE] Event:", data.type, data);
+          console.log("[OpenCode SSE] Event:", data.type, data);
 
           setState((prev) => ({ ...prev, lastEvent: data }));
           onEvent?.(data);
         } catch (err) {
-          logger.error("[OpenCode SSE] Failed to parse event:", err);
+          console.error("[OpenCode SSE] Failed to parse event:", err);
         }
       };
 
       eventSource.onerror = (err) => {
-        logger.error("[OpenCode SSE] Error:", err);
+        console.error("[OpenCode SSE] Error:", err);
         const error = new Error("SSE connection error");
 
         // Increment failed attempts
@@ -190,12 +189,12 @@ export function useOpencodeEvents(options: UseOpencodeEventsOptions = {}) {
 
         // Auto-reconnect only if we haven't exceeded max retries
         if (autoReconnect && shouldConnectRef.current && failedAttemptsRef.current < maxRetries) {
-          logger.debug(`[OpenCode SSE] Reconnecting in ${reconnectDelay}ms... (attempt ${failedAttemptsRef.current + 1}/${maxRetries})`);
+          console.log(`[OpenCode SSE] Reconnecting in ${reconnectDelay}ms... (attempt ${failedAttemptsRef.current + 1}/${maxRetries})`);
           reconnectTimeoutRef.current = setTimeout(() => {
             connect();
           }, reconnectDelay);
         } else if (failedAttemptsRef.current >= maxRetries) {
-          logger.warn(`[OpenCode SSE] Max retries (${maxRetries}) exceeded, giving up`);
+          console.warn(`[OpenCode SSE] Max retries (${maxRetries}) exceeded, giving up`);
           setState((prev) => ({
             ...prev,
             hasExceededRetries: true,
@@ -205,7 +204,7 @@ export function useOpencodeEvents(options: UseOpencodeEventsOptions = {}) {
 
       eventSourceRef.current = eventSource;
     } catch (err) {
-      logger.error("[OpenCode SSE] Failed to connect:", err);
+      console.error("[OpenCode SSE] Failed to connect:", err);
       const error = err instanceof Error ? err : new Error("Failed to connect");
       failedAttemptsRef.current += 1;
 
@@ -221,7 +220,7 @@ export function useOpencodeEvents(options: UseOpencodeEventsOptions = {}) {
   }, [activeWorkspaceId, sessionId, onEvent, onConnect, onDisconnect, onError, autoReconnect, reconnectDelay, maxRetries]);
 
   const disconnect = useCallback(() => {
-    logger.debug("[OpenCode SSE] Disconnecting...");
+    console.log("[OpenCode SSE] Disconnecting...");
     shouldConnectRef.current = false;
 
     if (reconnectTimeoutRef.current) {
@@ -241,7 +240,7 @@ export function useOpencodeEvents(options: UseOpencodeEventsOptions = {}) {
   useEffect(() => {
     if (!enabled) return;
 
-    logger.debug("[OpenCode SSE] Workspace changed, reconnecting...", { activeWorkspaceId });
+    console.log("[OpenCode SSE] Workspace changed, reconnecting...", { activeWorkspaceId });
 
     // Close existing connection without setting shouldConnectRef to false
     if (reconnectTimeoutRef.current) {

@@ -4,7 +4,6 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { createOpencodeClient } from "@opencode-ai/sdk/client";
-import { logger } from "../lib/logger";
 import { createErrorResponse } from "./utils/createErrorResponse";
 import { getErrorStatusCode } from "./utils/getErrorStatusCode";
 import {
@@ -33,14 +32,14 @@ function createHandler<T = unknown>(
 	opencodeClient: ReturnType<typeof createOpencodeClient>
 ) {
 	return async (c: any) => {
-		logger.debug(`[${endpoint}] Request received`);
+		console.log(`[${endpoint}] Request received`);
 		const { data, error } = await handler(opencodeClient, c);
 		if (error) {
-			logger.error(`[${endpoint}] Error occurred`, error);
+			console.error(`[${endpoint}] Error occurred`, error);
 			const statusCode = getErrorStatusCode(error);
 			return c.json(createErrorResponse(error, endpoint), statusCode);
 		}
-		logger.debug(`[${endpoint}] Success, wrapping data in response`, {
+		console.log(`[${endpoint}] Success, wrapping data in response`, {
 			dataType: Array.isArray(data) ? `array[${data.length}]` : typeof data,
 		});
 		return c.json({ data });
@@ -372,13 +371,13 @@ export function createOpencodeApp(config: AppConfig) {
 	// ========================================
 	app.get("/event", async () => {
 		try {
-			logger.debug('[OpenCode SSE] Client connecting to events endpoint');
+			console.log('[OpenCode SSE] Client connecting to events endpoint');
 
 			const result = await opencodeClient.event.subscribe();
 
 			// Check if stream exists
 			if (!result.stream) {
-				logger.error('[OpenCode SSE] No stream in result');
+				console.error('[OpenCode SSE] No stream in result');
 				return new Response(
 					`data: ${JSON.stringify({ error: 'No stream available' })}\n\n`,
 					{
@@ -392,7 +391,7 @@ export function createOpencodeApp(config: AppConfig) {
 				);
 			}
 
-			logger.debug('[OpenCode SSE] Converting AsyncGenerator to ReadableStream');
+			console.log('[OpenCode SSE] Converting AsyncGenerator to ReadableStream');
 
 			// Convert AsyncGenerator to ReadableStream
 			// The SDK returns an AsyncGenerator, not a ReadableStream
@@ -401,17 +400,17 @@ export function createOpencodeApp(config: AppConfig) {
 				async start(controller) {
 					const encoder = new TextEncoder();
 					try {
-						logger.debug('[OpenCode SSE] Starting stream iteration');
+						console.log('[OpenCode SSE] Starting stream iteration');
 						for await (const event of result.stream) {
-							logger.debug('[OpenCode SSE] Received event:', event.type);
+							console.log('[OpenCode SSE] Received event:', event.type);
 							// Format as SSE: data: {json}\n\n
 							const data = `data: ${JSON.stringify(event)}\n\n`;
 							controller.enqueue(encoder.encode(data));
 						}
-						logger.debug('[OpenCode SSE] Stream completed');
+						console.log('[OpenCode SSE] Stream completed');
 						controller.close();
 					} catch (error) {
-						logger.error('[OpenCode SSE] Stream error:', error);
+						console.error('[OpenCode SSE] Stream error:', error);
 						controller.error(error);
 					}
 				},
@@ -425,7 +424,7 @@ export function createOpencodeApp(config: AppConfig) {
 				},
 			});
 		} catch (error) {
-			logger.error('[OpenCode SSE] Connection error:', {
+			console.error('[OpenCode SSE] Connection error:', {
 				error: error instanceof Error ? error.message : String(error),
 				stack: error instanceof Error ? error.stack : undefined,
 				timestamp: new Date().toISOString(),
