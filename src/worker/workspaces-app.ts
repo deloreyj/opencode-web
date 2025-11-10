@@ -103,84 +103,13 @@ app.post(
 
 			console.log(`[Workspace ${workspaceId}] Repository cloned successfully`);
 
-			// Configure OpenCode authentication before starting the server
-			console.log(`[Workspace ${workspaceId}] Configuring OpenCode authentication...`);
-			try {
-				const token = c.env.OPENCODE_TOKEN || "eyJhbGciOiJSUzI1NiIsImtpZCI6IjIyMmViNzc0MTQ4MWE4MzY4ODYzOTFjMjQwMjM5YTZjMDAzYmYzNzM0ZmIzNDk0ZTc5MjE1NmY2OWEyMGRkNTIifQ.eyJhdWQiOlsiN2VhMjYxZTliYzE4ZjE5OTkxMjJkMjNiNTY5ODhiZGE0ZTBiNzAwNTZmYjg3M2UzNWIzZTU5ZDQwMDdmYmVhNiJdLCJlbWFpbCI6ImpkZWxvcmV5QGNsb3VkZmxhcmUuY29tIiwiZXhwIjoxNzYxODUyNjczLCJpYXQiOjE3NjE3NjYyNzMsIm5iZiI6MTc2MTc2NjI3MywiaXNzIjoiaHR0cHM6Ly9ldGktaW5kaWEuY2xvdWRmbGFyZWFjY2Vzcy5jb20iLCJ0eXBlIjoiYXBwIiwiaWRlbnRpdHlfbm9uY2UiOiJYZERCRGEwQnRuQlAwQmpqIiwic3ViIjoiOWJhZjRlZDQtYTdlYS01YzI1LTgzZGEtYjZlZjIxODM4ZmNhIiwiZGV2aWNlX2lkIjoiMGM5M2Q1YTUtODhjNy0xMWYwLTk0OTAtMWFkOTQ5ZTUwMzcyIiwiY3VzdG9tIjp7ImVtYWlsIjoiamRlbG9yZXlAY2xvdWRmbGFyZS5jb20iLCJmaXJzdE5hbWUiOiJKYW1lcyIsImxhc3ROYW1lIjoiRGVsb3JleSIsImdyb3VwcyI6WyJBQ0wtQ0ZBLUdMT0JBTC1jbGlja2hvdXNlLXByb3h5IiwiQUNMLUNGQS1HTE9CQUwtc3NoIiwiQUNMLUNGQS1HTE9CQUwtVEVBTS13b3JrZXJzLWdyb3d0aCIsIkFDTC1DRkEtR0xPQkFMLVBQTC1FVkVSWU9ORSIsIkFDTC1DRkEtR0xPQkFMLWp3dC1nYXRld2F5IiwiQUNMLUNGQS1HTE9CQUwtUFBMLUVNUExPWUVFUyIsIkFDTC1DRkEtR0xPQkFMLVBQTC1FTVBMT1lFRVMtRVhDTFVERS1SSVNLIiwiQUNMLUNGQS1HTE9CQUwtUFBMLEVNUExPWUVFUy1FWENMVURFLUhJR0gtUklTSyJdfSwiY291bnRyeSI6IlBUIn0.fxQfFQga2PMcpV2ELWqij4gZnYi8d_FI9VS7Jse9Mp2slfRyhdCLXivPqMcwvhEbtoD1JZjOSPDnteLgllGuLoGhMOMY_J-DMGCM45yDKqANS9yEWOZ11tn_BNty-cO6ckKkkU5HKMb50ligf7J37R6rkXQs-8-ImdNj5lvEtlzA6oUzDfk5H0n0ajpzoW0ef9oocKUJrQ_wH3BzcPGlusgFYU4PZxQ3vsw1sYzz_RRg_ekgC4BgV_AaVHJ5pnEY5Tg3p6SawpKfmWjdjdHiCP3cS49ln6w83hkFeqDB9CIdNO4MoaNJFyVlV7QpZLYptCJVkZunzYZRw0ne9J3W5Q";
-
-				// Auth file with the token
-				const authJson = {
-					"https://opencode.cloudflare.dev": {
-						"type": "wellknown",
-						"key": "TOKEN",
-						"token": token
-					}
-				};
-
-				// Config file with provider settings (from .well-known/opencode)
-				const configJson = {
-					"$schema": "https://opencode.ai/config.json",
-					"share": "disabled",
-					"disabled_providers": ["opencode"],
-					"provider": {
-						"anthropic": {
-							"name": "Anthropic: Cloudflare AI Gateway",
-							"options": {
-								"baseURL": "https://opencode.cloudflare.dev/anthropic",
-								"apiKey": "",
-								"headers": {
-									"cf-access-token": token
-								}
-							}
-						},
-						"openai": {
-							"name": "OpenAI: Cloudflare AI Gateway",
-							"options": {
-								"baseURL": "https://opencode.cloudflare.dev/openai",
-								"apiKey": "",
-								"headers": {
-									"cf-access-token": token
-								}
-							}
-						}
-					}
-				};
-
-				// Write files using base64 encoding to avoid quoting issues
-				const authJsonStr = JSON.stringify(authJson, null, 2);
-				const configJsonStr = JSON.stringify(configJson, null, 2);
-
-				// Write JSON strings directly using exec with base64
-				// Split into multiple simple commands to avoid shell complexity
-				const authBase64 = Buffer.from(authJsonStr).toString('base64');
-				const configBase64 = Buffer.from(configJsonStr).toString('base64');
-
-				// Use a temporary script approach
-				const writeScript = `#!/bin/sh
-echo "${authBase64}" | base64 -d > /root/.local/share/opencode/auth.json
-echo "${configBase64}" | base64 -d > /root/.config/opencode/config.json
-`;
-				await sandbox.exec('sh', {
-					args: ['-c', writeScript]
-				});
-
-				// Verify files were written
-				const authCheck = await sandbox.exec('ls', {
-					args: ['-la', '/root/.local/share/opencode/auth.json']
-				});
-				const configCheck = await sandbox.exec('ls', {
-					args: ['-la', '/root/.config/opencode/config.json']
-				});
-				console.log(`[Workspace ${workspaceId}] Auth file check:`, authCheck.stdout || authCheck.stderr);
-				console.log(`[Workspace ${workspaceId}] Config file check:`, configCheck.stdout || configCheck.stderr);
-				console.log(`[Workspace ${workspaceId}] OpenCode authentication configured successfully`);
-			} catch (authError) {
-				console.error(`[Workspace ${workspaceId}] Error configuring OpenCode authentication:`, authError);
-				console.error(`[Workspace ${workspaceId}] Error details:`, JSON.stringify(authError, null, 2));
-			}
+			// Verify repository was cloned correctly
+			const lsCheck = await sandbox.exec('ls -la /workspace/repo');
+			console.log(`[Workspace ${workspaceId}] Repository contents:`, lsCheck.stdout?.substring(0, 500));
 
 			// Start OpenCode server in the background
-			console.log(`[Workspace ${workspaceId}] Starting OpenCode server...`);
+			// OpenCode will use cwd as the project directory
+			console.log(`[Workspace ${workspaceId}] Starting OpenCode server in /workspace/repo...`);
 			let opencodeProcessId: string | undefined;
 			try {
 				const opencodeProcess = await sandbox.startProcess('opencode serve --port 4096 --hostname 0.0.0.0', {
@@ -200,7 +129,34 @@ echo "${configBase64}" | base64 -d > /root/.config/opencode/config.json
 			}
 
 			// Wait a moment for OpenCode to start
-			await new Promise(resolve => setTimeout(resolve, 2000));
+			await new Promise(resolve => setTimeout(resolve, 3000));
+
+			// Check if OpenCode process is still running
+			try {
+				const opencodeStatus = await sandbox.getProcess(opencodeProcessId!);
+				if (opencodeStatus) {
+					console.log(`[Workspace ${workspaceId}] OpenCode process still running (PID: ${opencodeStatus.id})`);
+					if (opencodeStatus.exitCode !== undefined) {
+						console.error(`[Workspace ${workspaceId}] OpenCode exited with code: ${opencodeStatus.exitCode}`);
+					}
+				} else {
+					console.error(`[Workspace ${workspaceId}] OpenCode process not found - it may have crashed!`);
+				}
+			} catch (statusError) {
+				console.error(`[Workspace ${workspaceId}] Failed to get OpenCode process status:`, statusError);
+			}
+
+			// Try to get OpenCode logs
+			try {
+				const logsCheck = await sandbox.exec(`ps aux | grep opencode | grep -v grep`);
+				console.log(`[Workspace ${workspaceId}] OpenCode process check:`, logsCheck.stdout || "No opencode process found");
+			} catch (e) {
+				console.error(`[Workspace ${workspaceId}] Failed to check OpenCode process:`, e);
+			}
+
+			// Verify OpenCode can see the repository files
+			const pwdCheck = await sandbox.exec('curl -s http://localhost:4096/path');
+			console.log(`[Workspace ${workspaceId}] OpenCode working directory check:`, pwdCheck.stdout?.substring(0, 300));
 
 			// Start the container worker (Hono API) in the background
 			// Worker files are baked into the Docker image at /opt/worker
@@ -227,37 +183,51 @@ echo "${configBase64}" | base64 -d > /root/.config/opencode/config.json
 			// Verify services are running before exposing port
 			console.log(`[Workspace ${workspaceId}] Verifying services are running...`);
 
-			// Check if OpenCode is responding
-			const opcodeCheck = await sandbox.exec('sh', {
-				args: ['-c', 'curl -s http://localhost:4096/config || echo "FAILED"']
-			});
-			console.log(`[Workspace ${workspaceId}] OpenCode health check:`, opcodeCheck.stdout?.substring(0, 200));
-			if (opcodeCheck.stdout?.includes('FAILED')) {
-				console.error(`[Workspace ${workspaceId}] OpenCode is not responding!`);
+		// Check if OpenCode is responding
+		const opcodeCheck = await sandbox.exec('sh -c \'curl -s http://localhost:4096/config || echo "FAILED"\'');
+		console.log(`[Workspace ${workspaceId}] OpenCode health check:`, opcodeCheck.stdout?.substring(0, 200));
+		if (opcodeCheck.stdout?.includes('FAILED')) {
+			console.error(`[Workspace ${workspaceId}] OpenCode is not responding!`);
+			
+			// Check OpenCode process status
+			const opcodeProcessCheck = await sandbox.getProcess(opencodeProcessId!);
+			if (opcodeProcessCheck) {
+				console.log(`[Workspace ${workspaceId}] OpenCode process status: running=${!opcodeProcessCheck.exitCode}, exitCode=${opcodeProcessCheck.exitCode}`);
+			} else {
+				console.error(`[Workspace ${workspaceId}] OpenCode process not found!`);
 			}
+		}
 
-			// Check if container worker is responding
-			const workerCheck = await sandbox.exec('sh', {
-				args: ['-c', 'curl -s http://localhost:8080/health || echo "FAILED"']
-			});
-			console.log(`[Workspace ${workspaceId}] Container worker health check:`, workerCheck.stdout?.substring(0, 200));
-			if (workerCheck.stdout?.includes('FAILED')) {
-				console.error(`[Workspace ${workspaceId}] Container worker is not responding!`);
+		// Check if container worker is responding
+		const workerCheck = await sandbox.exec('sh -c \'curl -s http://localhost:8080/health || echo "FAILED"\'');
+		console.log(`[Workspace ${workspaceId}] Container worker health check:`, workerCheck.stdout?.substring(0, 200));
+		if (workerCheck.stdout?.includes('FAILED')) {
+			console.error(`[Workspace ${workspaceId}] Container worker is not responding!`);
+			
+			// Check worker process status
+			const workerProcessCheck = await sandbox.getProcess(containerWorkerProcessId!);
+			if (workerProcessCheck) {
+				console.log(`[Workspace ${workspaceId}] Worker process status: running=${!workerProcessCheck.exitCode}, exitCode=${workerProcessCheck.exitCode}`);
+			} else {
+				console.error(`[Workspace ${workspaceId}] Worker process not found!`);
 			}
+		}
 
-			// Check what processes are running
-			const psCheck = await sandbox.exec('sh', {
-				args: ['-c', 'ps aux | grep -E "opencode|bun" | grep -v grep']
-			});
-			console.log(`[Workspace ${workspaceId}] Running processes:`, psCheck.stdout);
+		// Check what processes are running
+		const psCheck = await sandbox.exec('sh -c \'ps aux | grep -E "opencode|bun" | grep -v grep\'');
+		console.log(`[Workspace ${workspaceId}] Running processes:`, psCheck.stdout);
+		
+		// Check network connectivity
+		const netstatCheck = await sandbox.exec('sh -c \'netstat -tlnp | grep -E "4096|8080" || echo "No listeners found"\'');
+		console.log(`[Workspace ${workspaceId}] Network listeners:`, netstatCheck.stdout);
+		
+		// Try direct curl to container worker from inside container
+		const workerCurlTest = await sandbox.exec('sh -c \'curl -v http://localhost:8080/opencode/config 2>&1 | head -30\'');
+		console.log(`[Workspace ${workspaceId}] Direct curl to worker:`, workerCurlTest.stdout?.substring(0, 500));
 
-			// Expose the container worker port (8080, not OpenCode port)
-			// This is the API that clients will connect to
-			const result = await sandbox.exposePort(8080, {
-				hostname: c.env.SANDBOX_HOSTNAME
-			});
-
-			console.log(`[Workspace ${workspaceId}] Container worker exposed at: ${result.url}`);
+			// Note: We use containerFetch for routing instead of exposePort
+			// exposePort is optional and can be used for direct HTTP access if needed
+			console.log(`[Workspace ${workspaceId}] Container worker running on port 8080 (accessed via containerFetch)`);
 
 			// Store workspace metadata including the container worker URL and process IDs
 			const createdAt = new Date().toISOString();
@@ -266,11 +236,11 @@ echo "${configBase64}" | base64 -d > /root/.config/opencode/config.json
 				branch,
 				status: "ready",
 				createdAt,
-				opencodeUrl: result.url, // This is now the container worker URL (port 8080)
+				opencodeUrl: `http://localhost:8080`, // Container worker accessible via containerFetch
 				containerWorkerProcessId,
 				opencodeProcessId,
 			});
-			console.log(`[Workspace ${workspaceId}] Metadata cached for future requests (URL: ${result.url}, Worker PID: ${containerWorkerProcessId}, OpenCode PID: ${opencodeProcessId})`);
+			console.log(`[Workspace ${workspaceId}] Metadata cached (Worker PID: ${containerWorkerProcessId}, OpenCode PID: ${opencodeProcessId})`);
 
 			const response: CreateWorkspaceResponse = {
 				id: workspaceId,
@@ -294,16 +264,18 @@ app.get("", async (c) => {
 	try {
 		const workspaces: GetWorkspaceResponse[] = [];
 
-		// Add "local" workspace for dev mode
-		workspaces.push({
-			id: "local",
-			repoUrl: "local://dev",
-			branch: "local",
-			status: "ready",
-			opencodeUrl: c.env.OPENCODE_URL,
-			createdAt: new Date().toISOString(),
-			updatedAt: new Date().toISOString(),
-		});
+		// Add "local" workspace for dev mode (only if OPENCODE_URL is configured)
+		if (c.env.OPENCODE_URL) {
+			workspaces.push({
+				id: "local",
+				repoUrl: "local://dev",
+				branch: "local",
+				status: "ready",
+				opencodeUrl: c.env.OPENCODE_URL,
+				createdAt: new Date().toISOString(),
+				updatedAt: new Date().toISOString(),
+			});
+		}
 
 		// Add sandbox workspaces from metadata
 		for (const [id, metadata] of workspaceMetadata.entries()) {
@@ -335,8 +307,14 @@ app.get("/:id", async (c) => {
 	try {
 		const workspaceId = c.req.param("id");
 
-		// Special case: "local" workspace for dev mode
+		// Special case: "local" workspace for dev mode (only if OPENCODE_URL is configured)
 		if (workspaceId === "local") {
+			if (!c.env.OPENCODE_URL) {
+				return c.json(
+					{ error: 'Local workspace not available in production' },
+					404
+				);
+			}
 			const response: GetWorkspaceResponse = {
 				id: "local",
 				repoUrl: "local://dev",
@@ -433,14 +411,21 @@ app.get("/:id/logs", async (c) => {
 		// Get process status and output
 		const process = await sandbox.getProcess(processId);
 
+		if (!process) {
+			return c.json(
+				{ error: `Process ${processId} not found` },
+				404
+			);
+		}
+
 		return c.json({
 			data: {
 				processId,
 				processType,
 				status: process.status,
 				exitCode: process.exitCode,
-				stdout: process.stdout || "",
-				stderr: process.stderr || "",
+				stdout: (process as any).stdout || "",
+				stderr: (process as any).stderr || "",
 			}
 		});
 	} catch (error) {
@@ -497,8 +482,7 @@ app.post("/:id/stage-all", async (c) => {
 		const sandbox = getSandbox(c.env.SANDBOX, workspaceId);
 
 		// Run git add -A in the repository directory
-		const result = await sandbox.exec('git', {
-			args: ['add', '-A'],
+		const result = await sandbox.exec('git add -A', {
 			cwd: '/workspace/repo'
 		});
 
@@ -567,8 +551,7 @@ app.get("/:id/diff", async (c) => {
 		const sandbox = getSandbox(c.env.SANDBOX, workspaceId);
 
 		// Run git diff in the repository directory
-		const result = await sandbox.exec('git', {
-			args: ['diff', 'HEAD'],
+		const result = await sandbox.exec('git diff HEAD', {
 			cwd: '/workspace/repo'
 		});
 
@@ -622,8 +605,7 @@ app.get("/:id/status", async (c) => {
 		const sandbox = getSandbox(c.env.SANDBOX, workspaceId);
 
 		// Run git status in the repository directory
-		const result = await sandbox.exec('git', {
-			args: ['status', '--porcelain'],
+		const result = await sandbox.exec('git status --porcelain', {
 			cwd: '/workspace/repo'
 		});
 
@@ -662,10 +644,10 @@ app.post("/:id/stage", async (c) => {
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ filepath }),
 			});
-			if (!response.ok) {
-				const error = await response.json();
-				throw new Error(error.error || 'Failed to stage file');
-			}
+		if (!response.ok) {
+			const error = await response.json() as { error?: string };
+			throw new Error(error.error || 'Failed to stage file');
+		}
 			const data = await response.json();
 			return c.json({ data });
 		}
@@ -683,8 +665,7 @@ app.post("/:id/stage", async (c) => {
 		const sandbox = getSandbox(c.env.SANDBOX, workspaceId);
 
 		// Stage the file
-		await sandbox.exec('git', {
-			args: ['add', filepath],
+		await sandbox.exec(`git add "${filepath}"`, {
 			cwd: '/workspace/repo'
 		});
 
@@ -721,12 +702,12 @@ app.post("/:id/unstage", async (c) => {
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ filepath }),
 			});
-			if (!response.ok) {
-				const error = await response.json();
-				throw new Error(error.error || 'Failed to unstage file');
-			}
-			const data = await response.json();
-			return c.json({ data });
+		if (!response.ok) {
+			const error = await response.json() as { error?: string };
+			throw new Error(error.error || 'Failed to unstage file');
+		}
+		const data = await response.json();
+		return c.json({ data });
 		}
 
 		// Get metadata for sandbox workspaces
@@ -742,8 +723,7 @@ app.post("/:id/unstage", async (c) => {
 		const sandbox = getSandbox(c.env.SANDBOX, workspaceId);
 
 		// Unstage the file
-		await sandbox.exec('git', {
-			args: ['restore', '--staged', filepath],
+		await sandbox.exec(`git restore --staged "${filepath}"`, {
 			cwd: '/workspace/repo'
 		});
 
@@ -779,9 +759,7 @@ app.get("/:workspaceId/logs", async (c) => {
 
 		// Read log files from /workspace/logs directory
 		try {
-			const result = await sandbox.exec('sh', {
-				args: ['-c', 'ls -la /workspace/logs && cat /workspace/logs/*.log 2>/dev/null || echo "No logs found"']
-			});
+			const result = await sandbox.exec('sh -c \'ls -la /workspace/logs && cat /workspace/logs/*.log 2>/dev/null || echo "No logs found"\'');
 
 			return c.json({
 				data: {
