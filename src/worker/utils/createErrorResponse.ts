@@ -33,7 +33,7 @@ export function createErrorResponse(error: unknown, context?: string) {
 		errorDetails = typeof error === 'object' && error !== null ? error : {};
 	}
 
-	// Log error to Cloudflare observability
+	// Log error to Cloudflare observability (console.error is appropriate here for Workers)
 	console.error('[OpenCode API Error]', {
 		context,
 		message: errorMessage,

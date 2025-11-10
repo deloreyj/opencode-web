@@ -13,6 +13,7 @@ import {
 import { proxyToWorkspaceSandbox } from "./utils/proxyToWorkspaceSandbox";
 import { createErrorResponse } from "./utils/createErrorResponse";
 import { getErrorStatusCode } from "./utils/getErrorStatusCode";
+import { logger } from "../lib/logger";
 
 // Store workspace metadata by workspace ID (in-memory for now)
 export const workspaceMetadata = new Map<string, {
@@ -47,7 +48,7 @@ app.all("/:workspaceId/opencode/*", async (c) => {
 			? fullPath.substring(prefix.length) || '/'
 			: '/';
 
-		console.log(`[Workspace Proxy] ${c.req.method} ${containerPath} for workspace: ${workspaceId}`);
+		logger.debug(`[Workspace Proxy] ${c.req.method} ${containerPath} for workspace: ${workspaceId}`);
 
 		// Special case: "local" workspace for dev mode
 		// Proxy to /api/opencode which wraps responses properly
@@ -69,7 +70,7 @@ app.all("/:workspaceId/opencode/*", async (c) => {
 		// Proxy the request directly to the container worker running in the sandbox
 		return await proxyToWorkspaceSandbox(c, workspaceId, containerPath, workspaceMetadata, c.env);
 	} catch (error) {
-		console.error(`[Workspace Proxy] Error:`, error);
+		logger.error(`[Workspace Proxy] Error:`, error);
 		const statusCode = getErrorStatusCode(error);
 		return c.json(createErrorResponse(error, "Workspace Proxy"), statusCode);
 	}
@@ -90,7 +91,7 @@ app.post(
 			// Generate workspace ID from repo URL and timestamp
 			const workspaceId = `ws-${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
-			console.log(`[Workspace ${workspaceId}] Creating workspace for: ${repoUrl} (branch: ${branch})`);
+			logger.info(`[Workspace ${workspaceId}] Creating workspace for: ${repoUrl} (branch: ${branch})`);
 
 			// Get sandbox instance
 			const sandbox = getSandbox(c.env.SANDBOX, workspaceId);
@@ -101,15 +102,15 @@ app.post(
 				targetDir: '/workspace/repo'
 			});
 
-			console.log(`[Workspace ${workspaceId}] Repository cloned successfully`);
+			logger.info(`[Workspace ${workspaceId}] Repository cloned successfully`);
 
 			// Verify repository was cloned correctly
 			const lsCheck = await sandbox.exec('ls -la /workspace/repo');
-			console.log(`[Workspace ${workspaceId}] Repository contents:`, lsCheck.stdout?.substring(0, 500));
+			logger.debug(`[Workspace ${workspaceId}] Repository contents:`, lsCheck.stdout?.substring(0, 500));
 
 			// Start OpenCode server in the background
 			// OpenCode will use cwd as the project directory
-			console.log(`[Workspace ${workspaceId}] Starting OpenCode server in /workspace/repo...`);
+			logger.debug(`[Workspace ${workspaceId}] Starting OpenCode server in /workspace/repo...`);
 			let opencodeProcessId: string | undefined;
 			try {
 				const opencodeProcess = await sandbox.startProcess('opencode serve --port 4096 --hostname 0.0.0.0', {
@@ -122,9 +123,9 @@ app.post(
 					},
 				});
 				opencodeProcessId = opencodeProcess.id;
-				console.log(`[Workspace ${workspaceId}] OpenCode server started successfully (PID: ${opencodeProcessId})`);
+				logger.info(`[Workspace ${workspaceId}] OpenCode server started successfully (PID: ${opencodeProcessId})`);
 			} catch (opencodeError) {
-				console.error(`[Workspace ${workspaceId}] Failed to start OpenCode server:`, opencodeError);
+				logger.error(`[Workspace ${workspaceId}] Failed to start OpenCode server:`, opencodeError);
 				throw new Error(`Failed to start OpenCode server: ${opencodeError instanceof Error ? opencodeError.message : String(opencodeError)}`);
 			}
 
@@ -135,32 +136,32 @@ app.post(
 			try {
 				const opencodeStatus = await sandbox.getProcess(opencodeProcessId!);
 				if (opencodeStatus) {
-					console.log(`[Workspace ${workspaceId}] OpenCode process still running (PID: ${opencodeStatus.id})`);
+					logger.debug(`[Workspace ${workspaceId}] OpenCode process still running (PID: ${opencodeStatus.id})`);
 					if (opencodeStatus.exitCode !== undefined) {
-						console.error(`[Workspace ${workspaceId}] OpenCode exited with code: ${opencodeStatus.exitCode}`);
+						logger.error(`[Workspace ${workspaceId}] OpenCode exited with code: ${opencodeStatus.exitCode}`);
 					}
 				} else {
-					console.error(`[Workspace ${workspaceId}] OpenCode process not found - it may have crashed!`);
+					logger.error(`[Workspace ${workspaceId}] OpenCode process not found - it may have crashed!`);
 				}
 			} catch (statusError) {
-				console.error(`[Workspace ${workspaceId}] Failed to get OpenCode process status:`, statusError);
+				logger.error(`[Workspace ${workspaceId}] Failed to get OpenCode process status:`, statusError);
 			}
 
 			// Try to get OpenCode logs
 			try {
 				const logsCheck = await sandbox.exec(`ps aux | grep opencode | grep -v grep`);
-				console.log(`[Workspace ${workspaceId}] OpenCode process check:`, logsCheck.stdout || "No opencode process found");
+				logger.debug(`[Workspace ${workspaceId}] OpenCode process check:`, logsCheck.stdout || "No opencode process found");
 			} catch (e) {
-				console.error(`[Workspace ${workspaceId}] Failed to check OpenCode process:`, e);
+				logger.error(`[Workspace ${workspaceId}] Failed to check OpenCode process:`, e);
 			}
 
 			// Verify OpenCode can see the repository files
 			const pwdCheck = await sandbox.exec('curl -s http://localhost:4096/path');
-			console.log(`[Workspace ${workspaceId}] OpenCode working directory check:`, pwdCheck.stdout?.substring(0, 300));
+			logger.debug(`[Workspace ${workspaceId}] OpenCode working directory check:`, pwdCheck.stdout?.substring(0, 300));
 
 			// Start the container worker (Hono API) in the background
 			// Worker files are baked into the Docker image at /opt/worker
-			console.log(`[Workspace ${workspaceId}] Starting container worker...`);
+			logger.debug(`[Workspace ${workspaceId}] Starting container worker...`);
 			let containerWorkerProcessId: string | undefined;
 			try {
 				const workerProcess = await sandbox.startProcess('bun /opt/worker/container-worker.ts', {
@@ -171,9 +172,9 @@ app.post(
 					},
 				});
 				containerWorkerProcessId = workerProcess.id;
-				console.log(`[Workspace ${workspaceId}] Container worker started successfully (PID: ${containerWorkerProcessId})`);
+				logger.info(`[Workspace ${workspaceId}] Container worker started successfully (PID: ${containerWorkerProcessId})`);
 			} catch (workerError) {
-				console.error(`[Workspace ${workspaceId}] Failed to start container worker:`, workerError);
+				logger.error(`[Workspace ${workspaceId}] Failed to start container worker:`, workerError);
 				throw new Error(`Failed to start container worker: ${workerError instanceof Error ? workerError.message : String(workerError)}`);
 			}
 
@@ -181,53 +182,53 @@ app.post(
 			await new Promise(resolve => setTimeout(resolve, 2000));
 
 			// Verify services are running before exposing port
-			console.log(`[Workspace ${workspaceId}] Verifying services are running...`);
+			logger.debug(`[Workspace ${workspaceId}] Verifying services are running...`);
 
 		// Check if OpenCode is responding
 		const opcodeCheck = await sandbox.exec('sh -c \'curl -s http://localhost:4096/config || echo "FAILED"\'');
-		console.log(`[Workspace ${workspaceId}] OpenCode health check:`, opcodeCheck.stdout?.substring(0, 200));
+		logger.debug(`[Workspace ${workspaceId}] OpenCode health check:`, opcodeCheck.stdout?.substring(0, 200));
 		if (opcodeCheck.stdout?.includes('FAILED')) {
-			console.error(`[Workspace ${workspaceId}] OpenCode is not responding!`);
+			logger.error(`[Workspace ${workspaceId}] OpenCode is not responding!`);
 			
 			// Check OpenCode process status
 			const opcodeProcessCheck = await sandbox.getProcess(opencodeProcessId!);
 			if (opcodeProcessCheck) {
-				console.log(`[Workspace ${workspaceId}] OpenCode process status: running=${!opcodeProcessCheck.exitCode}, exitCode=${opcodeProcessCheck.exitCode}`);
+				logger.debug(`[Workspace ${workspaceId}] OpenCode process status: running=${!opcodeProcessCheck.exitCode}, exitCode=${opcodeProcessCheck.exitCode}`);
 			} else {
-				console.error(`[Workspace ${workspaceId}] OpenCode process not found!`);
+				logger.error(`[Workspace ${workspaceId}] OpenCode process not found!`);
 			}
 		}
 
 		// Check if container worker is responding
 		const workerCheck = await sandbox.exec('sh -c \'curl -s http://localhost:8080/health || echo "FAILED"\'');
-		console.log(`[Workspace ${workspaceId}] Container worker health check:`, workerCheck.stdout?.substring(0, 200));
+		logger.debug(`[Workspace ${workspaceId}] Container worker health check:`, workerCheck.stdout?.substring(0, 200));
 		if (workerCheck.stdout?.includes('FAILED')) {
-			console.error(`[Workspace ${workspaceId}] Container worker is not responding!`);
+			logger.error(`[Workspace ${workspaceId}] Container worker is not responding!`);
 			
 			// Check worker process status
 			const workerProcessCheck = await sandbox.getProcess(containerWorkerProcessId!);
 			if (workerProcessCheck) {
-				console.log(`[Workspace ${workspaceId}] Worker process status: running=${!workerProcessCheck.exitCode}, exitCode=${workerProcessCheck.exitCode}`);
+				logger.debug(`[Workspace ${workspaceId}] Worker process status: running=${!workerProcessCheck.exitCode}, exitCode=${workerProcessCheck.exitCode}`);
 			} else {
-				console.error(`[Workspace ${workspaceId}] Worker process not found!`);
+				logger.error(`[Workspace ${workspaceId}] Worker process not found!`);
 			}
 		}
 
 		// Check what processes are running
 		const psCheck = await sandbox.exec('sh -c \'ps aux | grep -E "opencode|bun" | grep -v grep\'');
-		console.log(`[Workspace ${workspaceId}] Running processes:`, psCheck.stdout);
+		logger.debug(`[Workspace ${workspaceId}] Running processes:`, psCheck.stdout);
 		
 		// Check network connectivity
 		const netstatCheck = await sandbox.exec('sh -c \'netstat -tlnp | grep -E "4096|8080" || echo "No listeners found"\'');
-		console.log(`[Workspace ${workspaceId}] Network listeners:`, netstatCheck.stdout);
+		logger.debug(`[Workspace ${workspaceId}] Network listeners:`, netstatCheck.stdout);
 		
 		// Try direct curl to container worker from inside container
 		const workerCurlTest = await sandbox.exec('sh -c \'curl -v http://localhost:8080/opencode/config 2>&1 | head -30\'');
-		console.log(`[Workspace ${workspaceId}] Direct curl to worker:`, workerCurlTest.stdout?.substring(0, 500));
+		logger.debug(`[Workspace ${workspaceId}] Direct curl to worker:`, workerCurlTest.stdout?.substring(0, 500));
 
 			// Note: We use containerFetch for routing instead of exposePort
 			// exposePort is optional and can be used for direct HTTP access if needed
-			console.log(`[Workspace ${workspaceId}] Container worker running on port 8080 (accessed via containerFetch)`);
+			logger.info(`[Workspace ${workspaceId}] Container worker running on port 8080 (accessed via containerFetch)`);
 
 			// Store workspace metadata including the container worker URL and process IDs
 			const createdAt = new Date().toISOString();
@@ -240,7 +241,7 @@ app.post(
 				containerWorkerProcessId,
 				opencodeProcessId,
 			});
-			console.log(`[Workspace ${workspaceId}] Metadata cached (Worker PID: ${containerWorkerProcessId}, OpenCode PID: ${opencodeProcessId})`);
+			logger.info(`[Workspace ${workspaceId}] Metadata cached (Worker PID: ${containerWorkerProcessId}, OpenCode PID: ${opencodeProcessId})`);
 
 			const response: CreateWorkspaceResponse = {
 				id: workspaceId,
@@ -252,7 +253,7 @@ app.post(
 
 			return c.json({ data: response }, 201);
 		} catch (error) {
-			console.error('[Workspace Creation Error]', error);
+			logger.error('[Workspace Creation Error]', error);
 			const statusCode = getErrorStatusCode(error);
 			return c.json(createErrorResponse(error, "POST "), statusCode);
 		}
@@ -296,7 +297,7 @@ app.get("", async (c) => {
 
 		return c.json(response);
 	} catch (error) {
-		console.error('[Workspace List Error]', error);
+		logger.error('[Workspace List Error]', error);
 		const statusCode = getErrorStatusCode(error);
 		return c.json(createErrorResponse(error, "GET "), statusCode);
 	}
@@ -348,7 +349,7 @@ app.get("/:id", async (c) => {
 			404
 		);
 	} catch (error) {
-		console.error('[Workspace Get Error]', error);
+		logger.error('[Workspace Get Error]', error);
 		const statusCode = getErrorStatusCode(error);
 		return c.json(createErrorResponse(error, "GET /:id"), statusCode);
 	}
@@ -372,7 +373,7 @@ app.delete("/:id", async (c) => {
 
 		return c.json({ data: response });
 	} catch (error) {
-		console.error('[Workspace Delete Error]', error);
+		logger.error('[Workspace Delete Error]', error);
 		const statusCode = getErrorStatusCode(error);
 		return c.json(createErrorResponse(error, "DELETE /:id"), statusCode);
 	}
@@ -429,7 +430,7 @@ app.get("/:id/logs", async (c) => {
 			}
 		});
 	} catch (error) {
-		console.error('[Workspace Logs Error]', error);
+		logger.error('[Workspace Logs Error]', error);
 		const statusCode = getErrorStatusCode(error);
 		return c.json(createErrorResponse(error, "GET /:id/logs"), statusCode);
 	}
@@ -461,7 +462,7 @@ app.post("/:id/stage-all", async (c) => {
 					}
 				});
 			} catch (err: any) {
-				console.error('[Local Stage All Error]', err.message);
+				logger.error('[Local Stage All Error]', err.message);
 				return c.json(
 					{ error: `Failed to stage changes: ${err.message}` },
 					500
@@ -497,7 +498,7 @@ app.post("/:id/stage-all", async (c) => {
 			}
 		});
 	} catch (error) {
-		console.error('[Workspace Stage All Error]', error);
+		logger.error('[Workspace Stage All Error]', error);
 		const statusCode = getErrorStatusCode(error);
 		return c.json(createErrorResponse(error, "POST /:id/stage-all"), statusCode);
 	}
@@ -528,7 +529,7 @@ app.get("/:id/diff", async (c) => {
 					}
 				});
 			} catch (err: any) {
-				console.warn('[Local Diff Warning]', err.message);
+				logger.warn('[Local Diff Warning]', err.message);
 				return c.json({
 					data: {
 						diff: "",
@@ -564,7 +565,7 @@ app.get("/:id/diff", async (c) => {
 			}
 		});
 	} catch (error) {
-		console.error('[Workspace Diff Error]', error);
+		logger.error('[Workspace Diff Error]', error);
 		const statusCode = getErrorStatusCode(error);
 		return c.json(createErrorResponse(error, "GET /:id/diff"), statusCode);
 	}
@@ -574,7 +575,7 @@ app.get("/:id/diff", async (c) => {
 app.get("/:id/status", async (c) => {
 	try {
 		const workspaceId = c.req.param('id');
-		console.log(`[Workspace ${workspaceId}] Getting git status`);
+		logger.info(`[Workspace ${workspaceId}] Getting git status`);
 
 		// Special case: "local" workspace for dev mode
 		if (workspaceId === "local") {
@@ -618,7 +619,7 @@ app.get("/:id/status", async (c) => {
 			}
 		});
 	} catch (error) {
-		console.error('[Workspace Status Error]', error);
+		logger.error('[Workspace Status Error]', error);
 		const statusCode = getErrorStatusCode(error);
 		return c.json(createErrorResponse(error, "GET /:id/status"), statusCode);
 	}
@@ -635,7 +636,7 @@ app.post("/:id/stage", async (c) => {
 			return c.json({ error: 'filepath is required' }, 400);
 		}
 
-		console.log(`[Workspace ${workspaceId}] Staging file: ${filepath}`);
+		logger.info(`[Workspace ${workspaceId}] Staging file: ${filepath}`);
 
 		// Special case: "local" workspace for dev mode
 		if (workspaceId === "local") {
@@ -676,7 +677,7 @@ app.post("/:id/stage", async (c) => {
 			}
 		});
 	} catch (error) {
-		console.error('[Workspace Stage Error]', error);
+		logger.error('[Workspace Stage Error]', error);
 		const statusCode = getErrorStatusCode(error);
 		return c.json(createErrorResponse(error, "POST /:id/stage"), statusCode);
 	}
@@ -693,7 +694,7 @@ app.post("/:id/unstage", async (c) => {
 			return c.json({ error: 'filepath is required' }, 400);
 		}
 
-		console.log(`[Workspace ${workspaceId}] Unstaging file: ${filepath}`);
+		logger.info(`[Workspace ${workspaceId}] Unstaging file: ${filepath}`);
 
 		// Special case: "local" workspace for dev mode
 		if (workspaceId === "local") {
@@ -734,7 +735,7 @@ app.post("/:id/unstage", async (c) => {
 			}
 		});
 	} catch (error) {
-		console.error('[Workspace Unstage Error]', error);
+		logger.error('[Workspace Unstage Error]', error);
 		const statusCode = getErrorStatusCode(error);
 		return c.json(createErrorResponse(error, "POST /:id/unstage"), statusCode);
 	}
@@ -746,7 +747,7 @@ app.post("/:id/unstage", async (c) => {
 app.get("/:workspaceId/logs", async (c) => {
 	try {
 		const workspaceId = c.req.param('workspaceId');
-		console.log(`[Workspace Logs] Fetching logs for workspace: ${workspaceId}`);
+		logger.info(`[Workspace Logs] Fetching logs for workspace: ${workspaceId}`);
 
 		// Get workspace metadata
 		const metadata = workspaceMetadata.get(workspaceId);
@@ -769,7 +770,7 @@ app.get("/:workspaceId/logs", async (c) => {
 				}
 			});
 		} catch (error) {
-			console.error(`[Workspace Logs] Failed to read logs:`, error);
+			logger.error(`[Workspace Logs] Failed to read logs:`, error);
 			return c.json({
 				data: {
 					workspaceId,
@@ -779,7 +780,7 @@ app.get("/:workspaceId/logs", async (c) => {
 			});
 		}
 	} catch (error) {
-		console.error('[Workspace Logs Error]', error);
+		logger.error('[Workspace Logs Error]', error);
 		const statusCode = getErrorStatusCode(error);
 		return c.json(createErrorResponse(error, "GET /:workspaceId/logs"), statusCode);
 	}
