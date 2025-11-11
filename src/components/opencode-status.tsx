@@ -4,6 +4,7 @@
  */
 
 import { useOpencodeConfig, type SessionUsage } from "@/hooks/use-opencode";
+import { useWorkspace } from "@/lib/workspace-context";
 import { XCircle, Loader2, WifiOff } from "lucide-react";
 
 interface OpencodeStatusProps {
@@ -34,8 +35,20 @@ function formatTokens(tokens: number): string {
 
 export function OpencodeStatus({ sseConnected, hasExceededRetries, sessionUsage }: OpencodeStatusProps = {}) {
   const { data: serverInfo, isLoading, error } = useOpencodeConfig();
+  const { isCreatingWorkspace, activeWorkspaceId } = useWorkspace();
 
-  if (isLoading) {
+  // Show workspace creation status
+  if (isCreatingWorkspace) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" />
+        <span>Creating workspace...</span>
+      </div>
+    );
+  }
+
+  // Show loading only if we have a workspace selected but config is loading
+  if (isLoading && activeWorkspaceId) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin" />
@@ -44,13 +57,19 @@ export function OpencodeStatus({ sseConnected, hasExceededRetries, sessionUsage 
     );
   }
 
-  if (error || !serverInfo) {
+  // Show error only if we have a workspace selected but can't connect
+  if ((error || !serverInfo) && activeWorkspaceId) {
     return (
       <div className="flex items-center gap-2 text-sm text-destructive">
         <XCircle className="size-4" />
         <span>OpenCode server not available</span>
       </div>
     );
+  }
+
+  // No workspace selected - show nothing or a neutral state
+  if (!activeWorkspaceId) {
+    return null;
   }
 
   const totalTokens = sessionUsage ? 

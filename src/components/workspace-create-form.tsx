@@ -5,6 +5,7 @@ import { z } from "zod";
 import { useWorkspace } from "@/lib/workspace-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PlusIcon } from "lucide-react";
 import {
 	Dialog,
 	DialogContent,
@@ -24,7 +25,7 @@ import {
 
 const formSchema = z.object({
 	repoUrl: z.string().url("Must be a valid repository URL"),
-	branch: z.string().min(1, "Branch name is required").default("main"),
+	branch: z.string().min(1, "Branch name is required"),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -63,8 +64,8 @@ export function WorkspaceCreateForm() {
 			}}
 		>
 			<DialogTrigger asChild>
-				<Button variant="outline" size="sm">
-					New Workspace
+				<Button size="icon" variant="outline">
+					<PlusIcon className="size-5" />
 				</Button>
 			</DialogTrigger>
 			<DialogContent className="sm:max-w-[500px]">
@@ -72,12 +73,10 @@ export function WorkspaceCreateForm() {
 					id="workspace-create-form"
 					onSubmit={form.handleSubmit(onSubmit)}
 				>
-					<DialogHeader>
+					<DialogHeader className="text-left">
 						<DialogTitle>Create Workspace</DialogTitle>
 						<DialogDescription>
 							Clone a Git repository into a new sandboxed workspace.
-							<br />
-							<strong>Note:</strong> Workspace mode requires deployment to Cloudflare to work properly. In local development, use Direct Mode instead.
 						</DialogDescription>
 					</DialogHeader>
 					<div className="py-4">
