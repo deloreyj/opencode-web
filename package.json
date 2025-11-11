@@ -126,8 +126,6 @@
 		"check": "tsc && CLOUDFLARE_ENV=staging vite build && wrangler deploy --dry-run",
 		"deploy": "npx wrangler deploy",
 		"dev": "node scripts/dev-all.mjs",
-		"dev:vite": "vite",
-		"dev:opencode": "node scripts/start-opencode-server.mjs",
 		"lint": "eslint .",
 		"preview": "pnpm run build:staging && vite preview",
 		"test": "pnpm build:staging && vitest run --config vitest.worker.config.ts && vitest run --config vitest.ui.config.ts && vitest run --config vitest.storybook.config.ts",

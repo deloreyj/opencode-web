@@ -130,8 +130,6 @@ pnpm dev
 
 Your app will be available at [http://localhost:5173](http://localhost:5173).
 
-**Make sure OpenCode is running** on `localhost:3000` (or configure the proxy in `vite.config.ts`).
-
 ### Component Development
 
 Start Storybook for isolated component development:
@@ -217,35 +215,10 @@ pnpm lint
 
 Build for production:
 ```bash
-pnpm build
-```
-
-Preview locally:
-```bash
-pnpm preview
+pnpm build:production
 ```
 
 Deploy to Cloudflare Workers:
 ```bash
 pnpm deploy
-```
-
-Monitor your worker:
-```bash
-npx wrangler tail
-```
-
-## Environment Configuration
-
-Configure in `wrangler.jsonc`:
-
-```jsonc
-{
-  "name": "opencode-web",
-  "compatibility_date": "2024-01-01",
-  "main": "src/worker/index.ts",
-  "assets": {
-    "directory": "dist/client"
-  }
-}
 ```

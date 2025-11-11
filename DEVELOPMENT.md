@@ -29,7 +29,7 @@ This guide explains how to set up your local development environment for OpenCod
    cp .env.example .env.local
    ```
 
-   Edit `.env.local` and configure:
+   Edit `.env.local` and configure (optional):
    - `VITE_OPENCODE_URL` - OpenCode server URL (default: http://127.0.0.1:4096)
    - `OPENCODE_PORT` - Port for OpenCode server (default: 4096)
    - `OPENCODE_HOSTNAME` - Hostname for OpenCode server (default: 127.0.0.1)
@@ -43,8 +43,6 @@ This guide explains how to set up your local development environment for OpenCod
 
 ## Running the Development Environment
 
-### Option 1: All-in-One (Recommended)
-
 Start both OpenCode server and Vite dev server together:
 
 ```bash
@@ -56,39 +54,6 @@ This starts:
 - Vite dev server on http://localhost:5173
 
 Press `Ctrl+C` to stop both servers.
-
-### Option 2: Separate Terminals
-
-**Terminal 1 - OpenCode Server:**
-```bash
-pnpm dev:opencode
-```
-
-**Terminal 2 - Vite Dev Server:**
-```bash
-pnpm dev:vite
-```
-
-### Option 3: External OpenCode Server
-
-If you already have OpenCode running (e.g., from the TUI), you can connect to it:
-
-1. Find the port OpenCode is using:
-   ```bash
-   # OpenCode TUI shows the port on startup
-   # Or check the process list
-   lsof -i :4096
-   ```
-
-2. Update `.env.local` with the correct port:
-   ```bash
-   VITE_OPENCODE_URL=http://127.0.0.1:<port>
-   ```
-
-3. Start only Vite:
-   ```bash
-   pnpm dev:vite
-   ```
 
 ## Development URLs
 
@@ -113,7 +78,6 @@ opencode-web/
 │   │   └── opencode-client.ts # OpenCode SDK client
 │   └── stories/            # Storybook stories
 ├── scripts/
-│   ├── start-opencode-server.mjs # OpenCode server startup
 │   └── dev-all.mjs         # Combined dev server script
 └── .env.local              # Local environment variables
 ```
@@ -122,8 +86,6 @@ opencode-web/
 
 ### Development
 - `pnpm dev` - Start all development servers
-- `pnpm dev:vite` - Start only Vite dev server
-- `pnpm dev:opencode` - Start only OpenCode server
 - `pnpm storybook` - Start Storybook
 
 ### Testing

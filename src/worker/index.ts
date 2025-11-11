@@ -14,7 +14,7 @@ const app = new Hono<{ Bindings: Env }>();
 // ========================================
 // Direct mode: /api/opencode/* → local OpenCode server (OPENCODE_URL)
 const opencodeApp = createOpencodeApp({
-	opencodeBaseUrl: env.OPENCODE_URL,
+	opencodeBaseUrl: env.OPENCODE_URL, // If this is defined, we'll auto-configure a local workspace
 });
 app.route("/api/opencode", opencodeApp);
 
