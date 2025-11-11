@@ -3,13 +3,14 @@
  * Responsive chat interface with drawer for mobile and sidebar for desktop
  */
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import {
   Conversation,
   ConversationContent,
   ConversationScrollButton,
   ConversationEmptyState,
 } from "@/components/ai-elements/conversation";
+import { PromptInputHeader } from "@/components/ai-elements/prompt-input";
 import {
   Message,
   MessageAvatar,
@@ -53,7 +54,7 @@ import {
   ToolContent,
 } from "@/components/ai-elements/tool";
 import { Loader } from "@/components/ai-elements/loader";
-import { CopyIcon, RefreshCcwIcon, MessageSquareIcon, MenuIcon, PlusIcon, ChevronDownIcon, CheckCircleIcon, XCircleIcon, WrenchIcon, ClockIcon } from "lucide-react";
+import { CopyIcon, RefreshCcwIcon, MessageSquareIcon, ChevronDownIcon, CheckCircleIcon, XCircleIcon, WrenchIcon, ClockIcon, SettingsIcon, GitCompareIcon, MonitorIcon, HistoryIcon, XIcon } from "lucide-react";
 import { CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   useSessions,
@@ -77,6 +78,23 @@ import { AgentModeToggle } from "@/components/agent-mode-toggle";
 import { getToolContent } from "@/components/chat/tool-contents";
 import { WorkspaceSelector } from "@/components/workspace-selector";
 import { WorkspaceCreateForm } from "@/components/workspace-create-form";
+import { ApiKeySettings } from "@/components/api-key-settings";
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
+import { DiffViewer as DiffViewerComponent } from "@/components/blocks/diff-viewer/diff-viewer";
+import { useWorkspaceDiff } from "@/hooks/use-workspace-diff";
+import { useWorkspaceStatus } from "@/hooks/use-workspace-status";
+import { useWorkspace } from "@/lib/workspace-context";
+import { stageAllChanges, stageFile, unstageFile } from "@/lib/workspace-client";
+import { useQueryClient } from "@tanstack/react-query";
+import { workspaceDiffKeys } from "@/hooks/use-workspace-diff";
+
+type ViewMode = "conversation" | "diff" | "preview";
 
 /**
  * Get status icon for tool call
@@ -94,15 +112,200 @@ function getToolStatusIcon(status: string) {
   }
 }
 
+/**
+ * Parse git status output to get staged files
+ * Git status --porcelain format:
+ * XY filename
+ * X = staged status, Y = unstaged status
+ * M  = staged modification (X position)
+ * A  = staged addition
+ */
+function parseStagedFiles(statusOutput: string): Set<string> {
+  const staged = new Set<string>();
+  const lines = statusOutput.split('\n').filter(line => line.trim());
+
+  for (const line of lines) {
+    if (line.length < 3) continue;
+
+    const stagedStatus = line[0]; // First character = staging area status
+    const filepath = line.substring(3); // Skip XY and space
+
+    // If first character is not space, file has staged changes
+    if (stagedStatus !== ' ' && stagedStatus !== '?') {
+      staged.add(filepath);
+    }
+  }
+
+  return staged;
+}
+
+/**
+ * DiffViewer Component
+ */
+function DiffViewer({
+  searchQuery,
+  onSearchChange,
+  onStageFile,
+  onUnstageFile,
+  isStaging,
+}: {
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
+  onStageFile: (filepath: string) => void;
+  onUnstageFile: (filepath: string) => void;
+  isStaging: boolean;
+}) {
+  const { activeWorkspaceId } = useWorkspace();
+  const { data: diffData, isLoading, error } = useWorkspaceDiff(activeWorkspaceId);
+  const { data: statusData } = useWorkspaceStatus(activeWorkspaceId);
+
+  // Parse staged files from git status
+  const stagedFiles = useMemo(() => {
+    if (!statusData?.status) return new Set<string>();
+    return parseStagedFiles(statusData.status);
+  }, [statusData?.status]);
+
+  // Filter the diff by filename - must be before early returns to satisfy Rules of Hooks
+  const filteredDiff = useMemo(() => {
+    if (!diffData?.diff || !searchQuery.trim()) {
+      return diffData?.diff || "";
+    }
+
+    // Parse the diff to get individual file sections
+    const lines = diffData.diff.split('\n');
+    const filteredSections: string[] = [];
+    let currentSection: string[] = [];
+    let currentFile = '';
+    let inSection = false;
+
+    for (const line of lines) {
+      // Check if this is a file header
+      if (line.startsWith('diff --git')) {
+        // Save previous section if it matched
+        if (inSection && currentSection.length > 0) {
+          filteredSections.push(currentSection.join('\n'));
+        }
+        // Start new section
+        currentSection = [line];
+        currentFile = line;
+        inSection = currentFile.toLowerCase().includes(searchQuery.toLowerCase());
+      } else {
+        currentSection.push(line);
+      }
+    }
+
+    // Don't forget the last section
+    if (inSection && currentSection.length > 0) {
+      filteredSections.push(currentSection.join('\n'));
+    }
+
+    return filteredSections.join('\n');
+  }, [diffData?.diff, searchQuery]);
+
+  if (isLoading) {
+    return (
+      <div className="flex h-full items-center justify-center p-4 text-muted-foreground">
+        <div className="text-center">
+          <Loader />
+          <p className="mt-4 text-sm">Loading git diff...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex h-full items-center justify-center p-4 text-muted-foreground">
+        <div className="text-center">
+          <GitCompareIcon className="mx-auto mb-4 size-12 text-red-500" />
+          <h3 className="mb-2 font-semibold text-lg">Error Loading Diff</h3>
+          <p className="text-sm">{error.message}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!activeWorkspaceId) {
+    return (
+      <div className="flex h-full items-center justify-center p-4 text-muted-foreground">
+        <div className="text-center">
+          <GitCompareIcon className="mx-auto mb-4 size-12" />
+          <h3 className="mb-2 font-semibold text-lg">No Workspace Selected</h3>
+          <p className="text-sm">Create or select a workspace to view git changes</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!diffData?.diff || diffData.diff.trim() === "") {
+    return (
+      <div className="flex h-full items-center justify-center p-4 text-muted-foreground">
+        <div className="text-center">
+          <GitCompareIcon className="mx-auto mb-4 size-12" />
+          <h3 className="mb-2 font-semibold text-lg">No Changes</h3>
+          <p className="text-sm">No uncommitted changes in your workspace</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden">
+      <div className="flex-1 overflow-auto p-4">
+        <div className="mx-auto max-w-4xl">
+          <DiffViewerComponent
+            patch={filteredDiff}
+            stagedFiles={stagedFiles}
+            onStageFile={onStageFile}
+            onUnstageFile={onUnstageFile}
+            isStaging={isStaging}
+          />
+        </div>
+      </div>
+      <div className="shrink-0 border-t bg-card p-2 sm:p-4">
+        <input
+          type="text"
+          placeholder="Search files..."
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Stub AppPreview Component
+ */
+function AppPreview() {
+  return (
+    <div className="flex h-full items-center justify-center p-4 text-muted-foreground">
+      <div className="text-center">
+        <MonitorIcon className="mx-auto mb-4 size-12" />
+        <h3 className="mb-2 font-semibold text-lg">UI Preview</h3>
+        <p className="text-sm">App preview implementation coming soon</p>
+      </div>
+    </div>
+  );
+}
+
 export function ChatPage() {
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>();
   const [input, setInput] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("conversation");
   const [selectedModel, setSelectedModel] = useState<{
     providerID: string;
     modelID: string;
   } | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<string | undefined>();
+  const [diffSearchQuery, setDiffSearchQuery] = useState("");
+  const [isStaging, setIsStaging] = useState(false);
+
+  const { activeWorkspaceId } = useWorkspace();
+  const queryClient = useQueryClient();
 
   // Queries
   const { data: sessions, isLoading: sessionsLoading } = useSessions();
@@ -124,17 +327,30 @@ export function ChatPage() {
   // Streaming - update messages in real-time via SSE events
   const { connected: sseConnected, hasExceededRetries } = useStreamingUpdates({
     sessionId: currentSessionId,
+    onSessionCreated: useCallback((sessionId: string) => {
+      console.log("[ChatPage] Auto-created session on server connect:", sessionId);
+      setCurrentSessionId(sessionId);
+    }, []),
   });
 
   // Session usage tracking
   const sessionUsage = useSessionUsage(currentSessionId);
 
-  // Set default session on mount
+  // Clear session immediately when workspace changes
+  // This prevents using a session ID from a different workspace
+  useEffect(() => {
+    console.log(`[ChatPage] Workspace changed to ${activeWorkspaceId}, clearing current session`);
+    setCurrentSessionId(undefined);
+  }, [activeWorkspaceId]);
+
+  // Auto-select first session when sessions list changes
+  // This runs after the workspace switch and sessions are loaded
   useEffect(() => {
     if (!currentSessionId && sessionsList.length > 0) {
+      console.log(`[ChatPage] Auto-selecting first session for workspace ${activeWorkspaceId}`);
       setCurrentSessionId(sessionsList[0].id);
     }
-  }, [sessionsList, currentSessionId]);
+  }, [sessionsList, currentSessionId, activeWorkspaceId]);
 
   // Set default model
   useEffect(() => {
@@ -191,8 +407,18 @@ export function ChatPage() {
         return;
       }
 
-      // Create session if none exists
+      // Validate session exists in current workspace
       let sessionId = currentSessionId;
+      if (sessionId && sessionsList.length > 0) {
+        const sessionExists = sessionsList.some(s => s.id === sessionId);
+        if (!sessionExists) {
+          console.warn(`[handleSubmit] Session ${sessionId} not found in current workspace, clearing`);
+          sessionId = undefined;
+          setCurrentSessionId(undefined);
+        }
+      }
+
+      // Create session if none exists
       if (!sessionId) {
         const session = await createSession.mutateAsync({
           title: message.text?.slice(0, 50) || "New Conversation",
@@ -238,12 +464,83 @@ export function ChatPage() {
 
       setInput("");
     },
-    [currentSessionId, selectedModel, selectedAgent, createSession, sendMessage],
+    [currentSessionId, sessionsList, selectedModel, selectedAgent, createSession, sendMessage],
   );
 
   const handleCopy = useCallback((text: string) => {
     navigator.clipboard.writeText(text);
   }, []);
+
+  const cycleViewMode = useCallback(() => {
+    setViewMode((current) => {
+      if (current === "conversation") return "diff";
+      if (current === "diff") return "preview";
+      return "conversation";
+    });
+  }, []);
+
+  const handleStageAll = useCallback(async () => {
+    if (!activeWorkspaceId) return;
+
+    try {
+      setIsStaging(true);
+      await stageAllChanges(activeWorkspaceId);
+
+      // Refetch the diff and status after staging
+      queryClient.invalidateQueries({ queryKey: workspaceDiffKeys.diff(activeWorkspaceId) });
+      queryClient.invalidateQueries({ queryKey: workspaceStatusKeys.status(activeWorkspaceId) });
+    } catch (err) {
+      console.error('Failed to stage changes:', err);
+      alert(`Failed to stage changes: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setIsStaging(false);
+    }
+  }, [activeWorkspaceId, queryClient]);
+
+  const handleStageFile = useCallback(async (filepath: string) => {
+    if (!activeWorkspaceId) return;
+
+    try {
+      setIsStaging(true);
+      await stageFile(activeWorkspaceId, filepath);
+
+      // Refetch status after staging
+      queryClient.invalidateQueries({ queryKey: workspaceStatusKeys.status(activeWorkspaceId) });
+    } catch (err) {
+      console.error('Failed to stage file:', err);
+      alert(`Failed to stage file: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setIsStaging(false);
+    }
+  }, [activeWorkspaceId, queryClient]);
+
+  const handleUnstageFile = useCallback(async (filepath: string) => {
+    if (!activeWorkspaceId) return;
+
+    try {
+      setIsStaging(true);
+      await unstageFile(activeWorkspaceId, filepath);
+
+      // Refetch status after unstaging
+      queryClient.invalidateQueries({ queryKey: workspaceStatusKeys.status(activeWorkspaceId) });
+    } catch (err) {
+      console.error('Failed to unstage file:', err);
+      alert(`Failed to unstage file: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setIsStaging(false);
+    }
+  }, [activeWorkspaceId, queryClient]);
+
+  const getViewModeIcon = () => {
+    switch (viewMode) {
+      case "conversation":
+        return <MessageSquareIcon className="size-5" />;
+      case "diff":
+        return <GitCompareIcon className="size-5" />;
+      case "preview":
+        return <MonitorIcon className="size-5" />;
+    }
+  };
 
   const isLoading = sendMessage.isPending || messagesLoading;
 
@@ -264,45 +561,21 @@ export function ChatPage() {
       {/* Mobile Header */}
       <div className="flex flex-col gap-2 border-b bg-card px-3 py-2 sm:px-4 sm:py-3">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setDrawerOpen(true)}
-              className="h-9 w-9 shrink-0 sm:h-10 sm:w-10"
-            >
-              <MenuIcon className="size-5" />
-              <span className="sr-only">Open menu</span>
-            </Button>
-            <div className="min-w-0 flex-1">
-              <h1 className="truncate text-base font-semibold sm:text-lg">
-                {currentSession?.title || "OpenCode Chat"}
-              </h1>
-              <div className="hidden sm:block">
-                <OpencodeStatus
-                  sseConnected={sseConnected}
-                  hasExceededRetries={hasExceededRetries}
-                  sessionUsage={sessionUsage}
-                />
-              </div>
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-base font-semibold sm:text-lg">
+              {currentSession?.title || "OpenCode Chat"}
+            </h1>
+            <div className="hidden sm:block">
+              <OpencodeStatus
+                sseConnected={sseConnected}
+                hasExceededRetries={hasExceededRetries}
+                sessionUsage={sessionUsage}
+              />
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <ModeToggle />
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleCreateSession}
-              className="h-9 w-9 shrink-0 sm:h-10 sm:w-10"
-            >
-              <PlusIcon className="size-5" />
-              <span className="sr-only">New chat</span>
-            </Button>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <WorkspaceSelector />
-          <WorkspaceCreateForm />
         </div>
       </div>
 
@@ -315,9 +588,10 @@ export function ChatPage() {
         />
       </div>
 
-      {/* Messages */}
-      <Conversation className="flex-1">
-        <ConversationContent className="px-2 py-2 sm:px-4 sm:py-3">
+      {/* Content Area - Conversation, Diff, or Preview */}
+      {viewMode === "conversation" ? (
+        <Conversation className="flex-1">
+          <ConversationContent className="px-2 py-2 sm:px-4 sm:py-3">
           {messagesList.length === 0 && !isLoading ? (
             <ConversationEmptyState
               title="Start a conversation"
@@ -466,13 +740,75 @@ export function ChatPage() {
             </>
           )}
           {isLoading && <Loader />}
-        </ConversationContent>
-        <ConversationScrollButton />
-      </Conversation>
+          </ConversationContent>
+          <ConversationScrollButton />
+        </Conversation>
+      ) : viewMode === "diff" ? (
+        <div className="flex-1 overflow-auto">
+          <DiffViewer
+            searchQuery={diffSearchQuery}
+            onSearchChange={setDiffSearchQuery}
+            onStageFile={handleStageFile}
+            onUnstageFile={handleUnstageFile}
+            isStaging={isStaging}
+          />
+        </div>
+      ) : (
+        <div className="flex-1 overflow-auto">
+          <AppPreview />
+        </div>
+      )}
 
       {/* Input - Mobile Optimized */}
       <div className="border-t bg-card p-2 sm:p-4">
         <PromptInput globalDrop multiple onSubmit={handleSubmit}>
+          <PromptInputHeader>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={cycleViewMode}
+                className="h-8 gap-2 sm:h-9"
+                title={`Switch view (current: ${viewMode})`}
+              >
+                {getViewModeIcon()}
+                <span className="text-xs font-medium sm:text-sm">
+                  {viewMode === "conversation" ? "Chat" : viewMode === "diff" ? "Diff" : "App"}
+                </span>
+              </Button>
+              {viewMode === "diff" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleStageAll}
+                  disabled={isStaging || !activeWorkspaceId}
+                  className="h-8 sm:h-9"
+                >
+                  {isStaging ? "Staging..." : "Stage All"}
+                </Button>
+              )}
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setDrawerOpen(true)}
+                className="h-8 w-8 sm:h-9 sm:w-9"
+                title="Conversation history"
+              >
+                <HistoryIcon className="size-5" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setSettingsOpen(true)}
+                className="h-8 w-8 sm:h-9 sm:w-9"
+                title="Settings"
+              >
+                <SettingsIcon className="size-5" />
+              </Button>
+            </div>
+          </PromptInputHeader>
           <PromptInputBody>
             <PromptInputAttachments>
               {(attachment) => <PromptInputAttachment data={attachment} />}
@@ -492,7 +828,7 @@ export function ChatPage() {
                   <PromptInputActionAddAttachments />
                 </PromptInputActionMenuContent>
               </PromptInputActionMenu>
-              <AgentModeToggle 
+              <AgentModeToggle
                 selectedAgent={selectedAgent}
                 onAgentChange={setSelectedAgent}
                 className="h-8 w-8 sm:h-9 sm:w-9"
@@ -543,6 +879,37 @@ export function ChatPage() {
         onDeleteSession={handleDeleteSession}
         isLoading={sessionsLoading}
       />
+
+      {/* Settings Drawer */}
+      <Drawer open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DrawerContent className="max-h-[85vh]">
+          <DrawerHeader className="border-b pb-4">
+            <div className="flex items-center justify-between">
+              <DrawerTitle className="text-left">Settings</DrawerTitle>
+              <DrawerClose asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <XIcon className="size-5" />
+                </Button>
+              </DrawerClose>
+            </div>
+          </DrawerHeader>
+          <div className="flex-1 overflow-auto p-4">
+            <div className="space-y-6">
+              <div>
+                <h3 className="mb-3 font-semibold text-sm">Workspace</h3>
+                <div className="flex items-center gap-2 min-w-0">
+                  <WorkspaceSelector />
+                  <WorkspaceCreateForm />
+                </div>
+              </div>
+              <div>
+                <h3 className="mb-3 font-semibold text-sm">API Keys</h3>
+                <ApiKeySettings />
+              </div>
+            </div>
+          </div>
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 }

@@ -7,10 +7,11 @@ declare namespace Cloudflare {
 	}
 	interface Env {
 		OPENCODE_URL: "http://127.0.0.1:4096" | "http://opencode-staging:4096" | "http://opencode-production:4096";
-		SANDBOX_HOSTNAME: "localhost" | "staging.yourdomain.com" | "yourdomain.com";
+
 		VITE_OPENCODE_URL: string;
 		OPENCODE_PORT: string;
 		OPENCODE_HOSTNAME: string;
+		OPENCODE_TOKEN?: string;
 		SANDBOX: DurableObjectNamespace<Sandbox>;
 	}
 }
@@ -19,7 +20,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "OPENCODE_URL" | "SANDBOX_HOSTNAME" | "VITE_OPENCODE_URL" | "OPENCODE_PORT" | "OPENCODE_HOSTNAME">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "OPENCODE_URL" | "VITE_OPENCODE_URL" | "OPENCODE_PORT" | "OPENCODE_HOSTNAME">> {}
 }
 
 // Begin runtime types

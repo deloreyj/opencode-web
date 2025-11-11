@@ -5,6 +5,7 @@ import {
 	useCallback,
 	type ReactNode,
 } from "react";
+import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import type {
 	CreateWorkspaceRequest,
 	GetWorkspaceResponse,
@@ -14,6 +15,13 @@ import {
 	listWorkspaces as apiListWorkspaces,
 	deleteWorkspace as apiDeleteWorkspace,
 } from "@/lib/workspace-client";
+import { opencodeKeys } from "@/hooks/use-opencode";
+
+export const workspaceKeys = {
+	all: ["workspaces"] as const,
+	lists: () => [...workspaceKeys.all, "list"] as const,
+	detail: (id: string) => [...workspaceKeys.all, "detail", id] as const,
+};
 
 interface WorkspaceContextValue {
 	workspaces: GetWorkspaceResponse[];
@@ -21,100 +29,124 @@ interface WorkspaceContextValue {
 	setActiveWorkspaceId: (id: string | null) => void;
 	createWorkspace: (data: CreateWorkspaceRequest) => Promise<void>;
 	deleteWorkspace: (id: string) => Promise<void>;
-	refreshWorkspaces: () => Promise<void>;
 	isLoading: boolean;
-	error: string | null;
+	isCreatingWorkspace: boolean;
+	error: Error | null;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
-	const [workspaces, setWorkspaces] = useState<GetWorkspaceResponse[]>([]);
+	const queryClient = useQueryClient();
 	const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(
 		null,
 	);
-	const [isLoading, setIsLoading] = useState(false);
-	const [error, setError] = useState<string | null>(null);
 
-	const refreshWorkspaces = useCallback(async () => {
-		try {
-			setIsLoading(true);
-			setError(null);
-			const data = await apiListWorkspaces();
-			setWorkspaces(data);
-		} catch (err) {
-			const message = err instanceof Error ? err.message : String(err);
-			setError(message);
-		} finally {
-			setIsLoading(false);
-		}
-	}, []);
+	// Auto-create default workspace mutation (triggered automatically if no workspaces exist)
+	const autoCreateWorkspaceMutation = useMutation({
+		mutationFn: apiCreateWorkspace,
+		onSuccess: (newWorkspace) => {
+			// Invalidate workspace list to include the new workspace
+			queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() });
+			// Auto-select the new workspace
+			setActiveWorkspaceId(newWorkspace.id);
+			// Invalidate OpenCode queries
+			queryClient.invalidateQueries({ queryKey: opencodeKeys.all });
+		},
+	});
+
+	// Use React Query to fetch workspaces
+	const {
+		data: workspaces = [],
+		isLoading,
+		error,
+	} = useQuery<GetWorkspaceResponse[], Error>({
+		queryKey: workspaceKeys.lists(),
+		queryFn: apiListWorkspaces,
+		staleTime: 60000, // 1 minute
+		select: (data) => {
+			// Auto-select workspace or auto-create if none exist
+			if (!activeWorkspaceId && !autoCreateWorkspaceMutation.isPending) {
+				if (data.length > 0) {
+					const hasLocal = data.some((ws) => ws.id === "local");
+					const firstSandbox = data.find((ws) => ws.id !== "local");
+					
+					// Prefer local in dev, first sandbox in production
+					const workspaceToSelect = hasLocal ? "local" : firstSandbox?.id;
+					if (workspaceToSelect) {
+						// Use queueMicrotask to avoid setState during render
+						queueMicrotask(() => setActiveWorkspaceId(workspaceToSelect));
+					}
+				} else if (!autoCreateWorkspaceMutation.isSuccess) {
+					// No workspaces exist - auto-create one (only in production)
+					console.log("[WorkspaceContext] No workspaces found, creating default sandbox...");
+					queueMicrotask(() => {
+						autoCreateWorkspaceMutation.mutate({
+							repoUrl: "https://github.com/deloreyj/worker-app-boilerplate",
+							branch: "main",
+						});
+					});
+				}
+			}
+			return data;
+		},
+	});
+
+	// Use mutations for create and delete
+	const createWorkspaceMutation = useMutation({
+		mutationFn: apiCreateWorkspace,
+		onSuccess: (newWorkspace) => {
+			// Invalidate and refetch workspaces
+			queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() });
+			// Set the new workspace as active
+			setActiveWorkspaceId(newWorkspace.id);
+			// Invalidate OpenCode queries for the new workspace
+			queryClient.invalidateQueries({ queryKey: opencodeKeys.all });
+		},
+	});
+
+	const deleteWorkspaceMutation = useMutation({
+		mutationFn: apiDeleteWorkspace,
+		onSuccess: (_, deletedId) => {
+			// Invalidate and refetch workspaces
+			queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() });
+			// Clear active workspace if it was deleted
+			if (activeWorkspaceId === deletedId) {
+				setActiveWorkspaceId(null);
+			}
+		},
+	});
 
 	const createWorkspace = useCallback(
 		async (data: CreateWorkspaceRequest) => {
-			try {
-				setIsLoading(true);
-				setError(null);
-				const newWorkspace = await apiCreateWorkspace(data);
-
-				// Add to local state
-				const workspace: GetWorkspaceResponse = {
-					id: newWorkspace.id,
-					repoUrl: newWorkspace.repoUrl,
-					branch: newWorkspace.branch,
-					status: newWorkspace.status,
-					createdAt: newWorkspace.createdAt,
-					updatedAt: newWorkspace.createdAt,
-				};
-
-				setWorkspaces((prev) => [...prev, workspace]);
-				setActiveWorkspaceId(workspace.id);
-			} catch (err) {
-				const message = err instanceof Error ? err.message : String(err);
-				setError(message);
-				throw err;
-			} finally {
-				setIsLoading(false);
-			}
+			await createWorkspaceMutation.mutateAsync(data);
 		},
-		[],
+		[createWorkspaceMutation],
 	);
 
 	const deleteWorkspace = useCallback(
 		async (id: string) => {
-			try {
-				setIsLoading(true);
-				setError(null);
-				await apiDeleteWorkspace(id);
-
-				// Remove from local state
-				setWorkspaces((prev) => prev.filter((w) => w.id !== id));
-
-				// Clear active workspace if it was deleted
-				if (activeWorkspaceId === id) {
-					setActiveWorkspaceId(null);
-				}
-			} catch (err) {
-				const message = err instanceof Error ? err.message : String(err);
-				setError(message);
-				throw err;
-			} finally {
-				setIsLoading(false);
-			}
+			await deleteWorkspaceMutation.mutateAsync(id);
 		},
-		[activeWorkspaceId],
+		[deleteWorkspaceMutation],
 	);
+
+	// Handle workspace changes - invalidate OpenCode queries
+	const handleSetActiveWorkspaceId = useCallback((id: string | null) => {
+		setActiveWorkspaceId(id);
+		queryClient.invalidateQueries({ queryKey: opencodeKeys.all });
+	}, [queryClient]);
 
 	return (
 		<WorkspaceContext.Provider
 			value={{
 				workspaces,
 				activeWorkspaceId,
-				setActiveWorkspaceId,
+				setActiveWorkspaceId: handleSetActiveWorkspaceId,
 				createWorkspace,
 				deleteWorkspace,
-				refreshWorkspaces,
 				isLoading,
+				isCreatingWorkspace: autoCreateWorkspaceMutation.isPending || createWorkspaceMutation.isPending,
 				error,
 			}}
 		>

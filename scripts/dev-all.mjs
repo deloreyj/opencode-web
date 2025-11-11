@@ -4,7 +4,8 @@
  *
  * This script starts:
  * 1. OpenCode server (port 4096)
- * 2. Vite dev server (port 5173)
+ * 2. Git diff server (port 4097)
+ * 3. Vite dev server (port 5173)
  */
 
 import { spawn } from 'child_process';
@@ -17,6 +18,7 @@ const colors = {
   reset: '\x1b[0m',
   opencode: '\x1b[36m', // Cyan
   vite: '\x1b[35m', // Magenta
+  gitdiff: '\x1b[33m', // Yellow
 };
 
 function prefix(name, color) {
@@ -102,6 +104,14 @@ async function main() {
     }
   );
 
+  // Start Git diff server
+  startServer(
+    'gitdiff',
+    'node',
+    ['src/internal-scripts/git-diff-server.js'],
+    colors.gitdiff
+  );
+
   // Wait a bit for OpenCode to start
   await wait(2000);
 
@@ -118,6 +128,7 @@ async function main() {
 
   console.log('\n✅ All servers started');
   console.log('📡 OpenCode API: http://127.0.0.1:4096');
+  console.log('🔧 Git diff server: http://127.0.0.1:4097');
   console.log('🌐 Vite dev server: http://localhost:5173');
   console.log('\nPress Ctrl+C to stop all servers\n');
 }

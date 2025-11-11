@@ -188,19 +188,19 @@ export function createOpencodeClient(workspaceId: string | null) {
     // ========================================
     session: {
       async list() {
-        const response = await fetch(`${baseUrl}/sessions`);
+        const response = await fetch(`${baseUrl}/session`);
         return unwrapResponse<Session[]>(response);
       },
       async get({ path }: { path: { id: string } }) {
-        const response = await fetch(`${baseUrl}/sessions/${path.id}`);
+        const response = await fetch(`${baseUrl}/session/${path.id}`);
         return unwrapResponse<Session>(response);
       },
       async children({ path }: { path: { id: string } }) {
-        const response = await fetch(`${baseUrl}/sessions/${path.id}/children`);
+        const response = await fetch(`${baseUrl}/session/${path.id}/children`);
         return unwrapResponse<Session[]>(response);
       },
       async create({ body }: { body: CreateSessionRequest }) {
-        const response = await fetch(`${baseUrl}/sessions`, {
+        const response = await fetch(`${baseUrl}/session`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -208,13 +208,13 @@ export function createOpencodeClient(workspaceId: string | null) {
         return unwrapResponse<Session>(response);
       },
       async delete({ path }: { path: { id: string } }) {
-        const response = await fetch(`${baseUrl}/sessions/${path.id}`, {
+        const response = await fetch(`${baseUrl}/session/${path.id}`, {
           method: "DELETE",
         });
         return unwrapResponse<boolean>(response);
       },
       async update({ path, body }: { path: { id: string }; body: UpdateSessionRequest }) {
-        const response = await fetch(`${baseUrl}/sessions/${path.id}`, {
+        const response = await fetch(`${baseUrl}/session/${path.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -222,7 +222,7 @@ export function createOpencodeClient(workspaceId: string | null) {
         return unwrapResponse<Session>(response);
       },
       async init({ path, body }: { path: { id: string }; body: InitRequest }) {
-        const response = await fetch(`${baseUrl}/sessions/${path.id}/init`, {
+        const response = await fetch(`${baseUrl}/session/${path.id}/init`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -230,25 +230,25 @@ export function createOpencodeClient(workspaceId: string | null) {
         return unwrapResponse<boolean>(response);
       },
       async abort({ path }: { path: { id: string } }) {
-        const response = await fetch(`${baseUrl}/sessions/${path.id}/abort`, {
+        const response = await fetch(`${baseUrl}/session/${path.id}/abort`, {
           method: "POST",
         });
         return unwrapResponse<boolean>(response);
       },
       async share({ path }: { path: { id: string } }) {
-        const response = await fetch(`${baseUrl}/sessions/${path.id}/share`, {
+        const response = await fetch(`${baseUrl}/session/${path.id}/share`, {
           method: "POST",
         });
         return unwrapResponse<Session>(response);
       },
       async unshare({ path }: { path: { id: string } }) {
-        const response = await fetch(`${baseUrl}/sessions/${path.id}/unshare`, {
+        const response = await fetch(`${baseUrl}/session/${path.id}/unshare`, {
           method: "POST",
         });
         return unwrapResponse<Session>(response);
       },
       async summarize({ path, body }: { path: { id: string }; body: SummarizeRequest }) {
-        const response = await fetch(`${baseUrl}/sessions/${path.id}/summarize`, {
+        const response = await fetch(`${baseUrl}/session/${path.id}/summarize`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -256,15 +256,15 @@ export function createOpencodeClient(workspaceId: string | null) {
         return unwrapResponse<boolean>(response);
       },
       async messages({ path }: { path: { id: string } }) {
-        const response = await fetch(`${baseUrl}/sessions/${path.id}/messages`);
+        const response = await fetch(`${baseUrl}/session/${path.id}/message`);
         return unwrapResponse<MessagesResponse>(response);
       },
       async message({ path }: { path: { id: string; message_id: string } }) {
-        const response = await fetch(`${baseUrl}/sessions/${path.id}/messages/${path.message_id}`);
+        const response = await fetch(`${baseUrl}/session/${path.id}/message/${path.message_id}`);
         return unwrapResponse<MessageResponse>(response);
       },
       async prompt({ path, body }: { path: { id: string }; body: PromptRequest }) {
-        const response = await fetch(`${baseUrl}/sessions/${path.id}/prompt`, {
+        const response = await fetch(`${baseUrl}/session/${path.id}/prompt`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -272,7 +272,7 @@ export function createOpencodeClient(workspaceId: string | null) {
         return unwrapResponse(response);
       },
       async command({ path, body }: { path: { id: string }; body: CommandRequest }) {
-        const response = await fetch(`${baseUrl}/sessions/${path.id}/command`, {
+        const response = await fetch(`${baseUrl}/session/${path.id}/command`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -280,7 +280,7 @@ export function createOpencodeClient(workspaceId: string | null) {
         return unwrapResponse(response);
       },
       async shell({ path, body }: { path: { id: string }; body: ShellRequest }) {
-        const response = await fetch(`${baseUrl}/sessions/${path.id}/shell`, {
+        const response = await fetch(`${baseUrl}/session/${path.id}/shell`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -288,7 +288,7 @@ export function createOpencodeClient(workspaceId: string | null) {
         return unwrapResponse(response);
       },
       async revert({ path, body }: { path: { id: string }; body: RevertRequest }) {
-        const response = await fetch(`${baseUrl}/sessions/${path.id}/revert`, {
+        const response = await fetch(`${baseUrl}/session/${path.id}/revert`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -296,7 +296,7 @@ export function createOpencodeClient(workspaceId: string | null) {
         return unwrapResponse<Session>(response);
       },
       async unrevert({ path }: { path: { id: string } }) {
-        const response = await fetch(`${baseUrl}/sessions/${path.id}/unrevert`, {
+        const response = await fetch(`${baseUrl}/session/${path.id}/unrevert`, {
           method: "POST",
         });
         return unwrapResponse<Session>(response);
@@ -397,7 +397,7 @@ export function createOpencodeClient(workspaceId: string | null) {
       path: { id: string; permission_id: string };
       body: PermissionResponse;
     }) {
-      const response = await fetch(`${baseUrl}/sessions/${path.id}/permissions/${path.permission_id}`, {
+      const response = await fetch(`${baseUrl}/session/${path.id}/permissions/${path.permission_id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

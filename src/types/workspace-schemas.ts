@@ -65,3 +65,38 @@ export const DeleteWorkspaceResponseSchema = z.object({
 });
 
 export type DeleteWorkspaceResponse = z.infer<typeof DeleteWorkspaceResponseSchema>;
+
+export const GetWorkspaceDiffResponseSchema = z.object({
+	diff: z.string(),
+	workspaceId: z.string(),
+});
+
+export type GetWorkspaceDiffResponse = z.infer<typeof GetWorkspaceDiffResponseSchema>;
+
+export const StageAllResponseSchema = z.object({
+	success: z.boolean(),
+	message: z.string(),
+});
+
+export type StageAllResponse = z.infer<typeof StageAllResponseSchema>;
+
+export const GetWorkspaceStatusResponseSchema = z.object({
+	status: z.string(),
+	workspaceId: z.string(),
+});
+
+export type GetWorkspaceStatusResponse = z.infer<typeof GetWorkspaceStatusResponseSchema>;
+
+export const StageFileResponseSchema = z.object({
+	success: z.boolean(),
+	message: z.string(),
+});
+
+export type StageFileResponse = z.infer<typeof StageFileResponseSchema>;
+
+export const UnstageFileResponseSchema = z.object({
+	success: z.boolean(),
+	message: z.string(),
+});
+
+export type UnstageFileResponse = z.infer<typeof UnstageFileResponseSchema>;

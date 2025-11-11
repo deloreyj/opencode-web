@@ -5,6 +5,36 @@ FROM docker.io/cloudflare/sandbox:0.4.14
 # Install OpenCode CLI globally (like other system tools)
 RUN npm install -g opencode-ai
 
-# Expose ports for OpenCode server (4096) and container worker (8080)
-# Note: Application files are copied at runtime, not during build
-EXPOSE 4096 8080
+# Create worker directory and install dependencies locally for Bun
+RUN mkdir -p /opt/worker && \
+    cd /opt/worker && \
+    echo '{"type":"module","dependencies":{"hono":"4.8.2","zod":"3.25.76","@opencode-ai/sdk":"1.0.20","@hono/zod-validator":"0.4.3"}}' > package.json && \
+    bun install
+
+# Copy container worker files and dependencies
+COPY src/worker/container-worker.ts /opt/worker/container-worker.ts
+COPY src/worker/opencode-app.ts /opt/worker/opencode-app.ts
+COPY src/worker/utils /opt/worker/utils
+COPY src/types /opt/types
+COPY src/lib /opt/lib
+
+# Create symlinks so that imported modules can find node_modules
+RUN ln -s /opt/worker/node_modules /opt/types/node_modules && \
+    ln -s /opt/worker/node_modules /opt/lib/node_modules
+
+ENV NODE_EXTRA_CA_CERTS="/etc/ssl/certs/Cloudflare_CA.pem"
+
+# Install warp certs as root if script exists (optional for internal users)
+COPY src/internal-scripts /tmp/internal-scripts
+RUN if [ -f /tmp/internal-scripts/install-cloudflare-warp-certs.sh ]; then \
+    chmod +x /tmp/internal-scripts/install-cloudflare-warp-certs.sh && \
+    /tmp/internal-scripts/install-cloudflare-warp-certs.sh || echo "WARP cert installation failed (not on Cloudflare internal network), continuing..."; \
+  else \
+    echo "Skipping Cloudflare WARP certs installation (script not found)"; \
+  fi && rm -rf /tmp/internal-scripts
+
+# Expose ports:
+# - 3000: Container server (Cloudflare Sandbox runtime API)
+# - 4096: OpenCode server
+# - 8080: Container worker (our Hono API)
+EXPOSE 3000 4096 8080

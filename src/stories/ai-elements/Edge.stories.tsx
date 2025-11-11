@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Edge } from "@/components/ai-elements/edge";
-import { ReactFlow, ReactFlowProvider, Controls, Background } from "@xyflow/react";
+import { ReactFlow, Controls, Background } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
 const meta = {

@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Canvas } from "@/components/ai-elements/canvas";
-import { Node } from "@/components/ai-elements/node";
 import { useState } from "react";
 import type { Node as FlowNode, Edge } from "@xyflow/react";
 
@@ -58,8 +57,8 @@ export const WithNodes: Story = {
 
 export const InteractiveCanvas: Story = {
   render: () => {
-    const [nodes, setNodes] = useState<FlowNode[]>(initialNodes);
-    const [edges, setEdges] = useState<Edge[]>(initialEdges);
+    const [nodes] = useState<FlowNode[]>(initialNodes);
+    const [edges] = useState<Edge[]>(initialEdges);
 
     return (
       <div className="h-screen w-screen">

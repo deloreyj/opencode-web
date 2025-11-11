@@ -4,17 +4,21 @@ import { getSandbox } from "@cloudflare/sandbox";
  * Forward request to container worker (Hono API) running inside the sandbox
  * The container worker then calls the local OpenCode server at localhost:4096
  *
+ * Uses Cloudflare Sandbox SDK's getSandbox and containerFetch methods
+ *
  * @param c Hono context
  * @param workspaceId The workspace ID
- * @param path The path to forward to (e.g., "/api/opencode/sessions")
+ * @param path The path to forward to (e.g., "/session")
  * @param workspaceMetadata Map of workspace metadata
+ * @param env Worker environment bindings
  * @returns Response from the container worker
  */
 export async function proxyToWorkspaceSandbox(
 	c: any,
 	workspaceId: string,
 	path: string,
-	workspaceMetadata: Map<string, { opencodeUrl: string; [key: string]: any }>
+	workspaceMetadata: Map<string, { opencodeUrl: string; [key: string]: any }>,
+	env: any
 ): Promise<Response> {
 	// Verify workspace exists
 	const metadata = workspaceMetadata.get(workspaceId);
@@ -30,36 +34,64 @@ export async function proxyToWorkspaceSandbox(
 	console.log(`[proxyToWorkspaceSandbox] Proxying to workspace ${workspaceId}, path: ${path}`);
 
 	// Get the sandbox instance
-	const sandbox = getSandbox(c.env.SANDBOX, workspaceId);
+	const sandbox = getSandbox(env.SANDBOX, workspaceId);
 
-	// Build the proxy request targeting localhost:8080 inside the container
-	// This is where our container worker (Hono app) is listening
+	// Construct the full URL with query params
 	const url = new URL(c.req.url);
-	const proxyUrl = `http://localhost:8080${path}${url.search}`;
+	const targetUrl = `http://localhost:8080${path}${url.search}`;
+	console.log(`[proxyToWorkspaceSandbox] Target URL: ${targetUrl}`);
 
-	console.log(`[proxyToWorkspaceSandbox] Container internal URL: ${proxyUrl}`);
+	try {
+		console.log(`[proxyToWorkspaceSandbox] Calling containerFetch...`);
+		
+		// Use containerFetch to route to the exposed port (8080)
+		// Port 8080 is where our container worker (Hono app) is running
+		// Note: duplex option is needed for streaming request bodies but not in standard RequestInit type
+		const fetchOptions: RequestInit & { duplex?: 'half' } = {
+			method: c.req.method,
+			headers: c.req.raw.headers,
+			body: c.req.method !== 'GET' && c.req.method !== 'HEAD' ? c.req.raw.body : undefined,
+			duplex: c.req.method !== 'GET' && c.req.method !== 'HEAD' ? 'half' : undefined,
+		};
+		
+		const response = await sandbox.containerFetch(
+			targetUrl,
+			fetchOptions,
+			8080 // Port where container worker is running
+		);
 
-	// Create proxy request with proper headers
-	const proxyRequest = new Request(proxyUrl, {
-		method: c.req.method,
-		headers: {
-			...Object.fromEntries(c.req.raw.headers.entries()),
-			'X-Original-URL': c.req.url,
-			'X-Forwarded-Host': url.hostname,
-			'X-Forwarded-Proto': url.protocol.replace(':', ''),
-			'X-Workspace-Id': workspaceId,
-		},
-		body: c.req.raw.body,
-		// @ts-ignore - duplex is needed for streaming request bodies
-		duplex: 'half',
-	});
+		console.log(`[proxyToWorkspaceSandbox] Response received - status: ${response.status}, headers:`, Object.fromEntries(response.headers.entries()));
+		
+		// Check if this is a streaming response (SSE)
+		const contentType = response.headers.get('content-type');
+		const isSSE = contentType?.includes('text/event-stream');
+		
+		if (isSSE) {
+			console.log(`[proxyToWorkspaceSandbox] Detected SSE stream, passing through`);
+		}
 
-	console.log(`[proxyToWorkspaceSandbox] Request method: ${proxyRequest.method}`);
+		// For non-streaming responses in dev, log preview
+		if (process.env.NODE_ENV === 'development' && !isSSE) {
+			const clonedResponse = response.clone();
+			try {
+				const text = await clonedResponse.text();
+				console.log(`[proxyToWorkspaceSandbox] Response preview:`, text.substring(0, 200));
+			} catch (e) {
+				console.log(`[proxyToWorkspaceSandbox] Could not read response for logging`);
+			}
+		}
 
-	// Use containerFetch to route the request to port 8080 inside the container
-	const response = await sandbox.containerFetch(proxyRequest, 8080);
-
-	console.log(`[proxyToWorkspaceSandbox] Response status: ${response.status}`);
-
-	return response;
+		return response;
+	} catch (error) {
+		console.error(`[proxyToWorkspaceSandbox] Request failed:`, error);
+		return new Response(
+			JSON.stringify({ 
+				error: `Failed to proxy request: ${error instanceof Error ? error.message : String(error)}` 
+			}), 
+			{
+				status: 500,
+				headers: { 'Content-Type': 'application/json' },
+			}
+		);
+	}
 }
