@@ -1,6 +1,6 @@
 {
 	"name": "vite-react-template",
-	"description": "A template for building a React application with Vite, Hono, and Cloudflare Workers",
+	"description": "A super cool template for building a React application with Vite, Hono, and Cloudflare Workers",
 	"private": true,
 	"cloudflare": {
 		"label": "Vite React Template",
