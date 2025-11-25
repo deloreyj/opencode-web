@@ -59,14 +59,15 @@ import { CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   useSessions,
   useMessages,
-  useCreateSession,
   useSendMessage,
   useDeleteSession,
   useProviders,
   useAgents,
   useOpencodeConfig,
   useSessionUsage,
+  opencodeKeys,
 } from "@/hooks/use-opencode";
+import { useCreateSessionRpc } from "@/hooks/use-create-session-rpc";
 import { useStreamingUpdates } from "@/hooks/use-streaming-updates";
 import { getMessageText, hasTextContent } from "@/lib/message-cache-utils";
 import type { MessageWithParts } from "@/types/opencode-messages";
@@ -88,7 +89,7 @@ import {
 } from "@/components/ui/drawer";
 import { DiffViewer as DiffViewerComponent } from "@/components/blocks/diff-viewer/diff-viewer";
 import { useWorkspaceDiff } from "@/hooks/use-workspace-diff";
-import { useWorkspaceStatus } from "@/hooks/use-workspace-status";
+import { useWorkspaceStatus, workspaceStatusKeys } from "@/hooks/use-workspace-status";
 import { useWorkspace } from "@/lib/workspace-context";
 import { stageAllChanges, stageFile, unstageFile } from "@/lib/workspace-client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -320,7 +321,10 @@ export function ChatPage() {
   const { data: configData } = useOpencodeConfig();
 
   // Mutations
-  const createSession = useCreateSession();
+  const createSessionRpc = useCreateSessionRpc((_session, allSessions) => {
+    // Update React Query cache with the new sessions list from RPC
+    queryClient.setQueryData(opencodeKeys.sessions(), allSessions);
+  });
   const sendMessage = useSendMessage();
   const deleteSession = useDeleteSession();
 
@@ -377,14 +381,12 @@ export function ChatPage() {
   }, [agentsData, selectedAgent]);
 
   const handleCreateSession = useCallback(async () => {
-    const session = await createSession.mutateAsync({
-      title: "New Conversation",
-    });
+    const session = await createSessionRpc.mutateAsync("New Conversation");
     if (session) {
       setCurrentSessionId(session.id);
     }
     setDrawerOpen(false); // Close drawer on mobile after creating
-  }, [createSession]);
+  }, [createSessionRpc]);
 
   const handleSelectSession = useCallback((sessionId: string) => {
     setCurrentSessionId(sessionId);
@@ -420,9 +422,9 @@ export function ChatPage() {
 
       // Create session if none exists
       if (!sessionId) {
-        const session = await createSession.mutateAsync({
-          title: message.text?.slice(0, 50) || "New Conversation",
-        });
+        const session = await createSessionRpc.mutateAsync(
+          message.text?.slice(0, 50) || "New Conversation"
+        );
         if (session) {
           sessionId = session.id;
           setCurrentSessionId(session.id);
@@ -464,7 +466,7 @@ export function ChatPage() {
 
       setInput("");
     },
-    [currentSessionId, sessionsList, selectedModel, selectedAgent, createSession, sendMessage],
+    [currentSessionId, sessionsList, selectedModel, selectedAgent, createSessionRpc, sendMessage],
   );
 
   const handleCopy = useCallback((text: string) => {
