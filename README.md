@@ -38,33 +38,6 @@ The app connects to OpenCode running on your machine and provides a polished cha
 - **React Query Cache** - In-place message updates for instant UI feedback
 - **Type-safe event handling** - Fully typed SSE events from OpenCode SDK
 
-## ✨ Key Features
-
-### Chat Interface
-- 💬 **Real-time streaming** - Messages appear as they're generated
-- 🔄 **Live updates** - Text updates in-place as AI types (no waiting for completion)
-- 📝 **Rich formatting** - Markdown, code blocks, syntax highlighting
-- 🧠 **Reasoning display** - See the AI's thought process
-- 🔧 **Tool call visualization** - View file reads, edits, and bash commands
-- 📎 **File attachments** - Attach files to your messages
-- 🎯 **Agent selection** - Switch between different AI agents
-- 🤖 **Model selection** - Choose from available AI models
-
-### Developer Experience
-- 🔥 **Hot Module Replacement** - Instant updates during development
-- 🎨 **Component-driven** - Storybook for isolated component development
-- 📦 **Type-safe** - Full TypeScript with OpenCode SDK types
-- 🧪 **Well-tested** - 41 passing tests covering critical paths
-- 🔄 **Pure functions** - Testable, composable utility functions
-- 🎯 **Type guards** - No `any` types, full type inference
-
-### Production Ready
-- ⚡ **Edge deployment** - Deploy to Cloudflare's global network
-- 🌍 **Low latency** - Serve from 300+ cities worldwide
-- 🔒 **Secure** - Runs on Cloudflare Workers runtime
-- 📊 **Observable** - Built-in monitoring and analytics
-- 🚀 **Zero-config** - Simple one-command deployment
-
 ## 📐 Architecture
 
 ### Dual-Context Build System
@@ -128,7 +101,20 @@ Start the development server:
 pnpm dev
 ```
 
-Your app will be available at [http://localhost:5173](http://localhost:5173).
+Your app will be available at [http://localhost:7777](http://localhost:7777).
+
+#### OpenCode Connection Modes
+
+By default, local development connects to the OpenCode server running on your machine (`localhost:4096`). The `pnpm dev` command automatically starts the OpenCode CLI for you.
+
+If you want to run OpenCode inside a **sandboxed container** instead:
+
+1. Open the **Settings drawer** in the web UI
+2. Create a new **Workspace**
+3. The system will spin up a Cloudflare Container with its own OpenCode instance
+4. Select the new workspace to route all requests to the containerized OpenCode
+
+This is useful for testing in an isolated environment that mirrors the production deployment.
 
 ### Component Development
 
