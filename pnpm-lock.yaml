@@ -116,6 +116,9 @@ importers:
       ai:
         specifier: ^5.0.80
         version: 5.0.80(zod@3.25.76)
+      capnweb:
+        specifier: ^0.2.0
+        version: 0.2.0
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -2849,6 +2852,9 @@ packages:
 
   caniuse-lite@1.0.30001747:
     resolution: {integrity: sha512-mzFa2DGIhuc5490Nd/G31xN1pnBnYMadtkyTjefPI7wzypqgCEpeWu9bJr0OnDsyKrW75zA9ZAt7pbQFmwLsQg==}
+
+  capnweb@0.2.0:
+    resolution: {integrity: sha512-fQSW5h6HIefRM4rHZMyAsWcu/qE/6Qr2OC8B99whifjDJatI5KLFcODSykKmpyCCKF50N3HvZ5lB26YBdh0fRg==}
 
   ccount@2.0.1:
     resolution: {integrity: sha512-eyrF0jiFpY+3drT6383f1qhkbGsLSifNAjA61IUjZjmLCWjItY6LB9ft9YhoDgwfmclB2zhu51Lc7+95b8NRAg==}
@@ -8296,6 +8302,8 @@ snapshots:
   callsites@3.1.0: {}
 
   caniuse-lite@1.0.30001747: {}
+
+  capnweb@0.2.0: {}
 
   ccount@2.0.1: {}
 
