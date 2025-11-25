@@ -32,3 +32,6 @@ dist-ssr
 
 *storybook.log
 storybook-static
+
+# Internal scripts that should not be committed
+src/internal-scripts/install-cloudflare-warp-certs.sh
