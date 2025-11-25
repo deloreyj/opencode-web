@@ -3,6 +3,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { getSandbox } from "@cloudflare/sandbox";
+import { newWorkersRpcResponse } from "capnweb";
 import {
 	CreateWorkspaceRequestSchema,
 	type CreateWorkspaceResponse,
@@ -14,6 +15,7 @@ import {
 import { proxyToWorkspaceSandbox } from "./utils/proxyToWorkspaceSandbox";
 import { createErrorResponse } from "./utils/createErrorResponse";
 import { getErrorStatusCode } from "./utils/getErrorStatusCode";
+import { OpencodeRpcServer } from "./opencode-rpc-server";
 
 // Extended process type that includes stdout/stderr
 // The @cloudflare/sandbox SDK returns these but they're not in the base type
@@ -41,6 +43,30 @@ export const workspaceMetadata = new Map<string, {
  * @returns Hono app with workspace routes
  */
 const app = new Hono<{ Bindings: Env }>();
+
+// ========================================
+// Workspace RPC Endpoint
+// ========================================
+// Cap'n Web RPC endpoint for workspace-specific OpenCode instances
+// This must come BEFORE the catch-all proxy
+app.all("/:workspaceId/opencode-rpc", async (c) => {
+	const workspaceId = c.req.param('workspaceId');
+	console.log(`[Workspace RPC] Request for workspace: ${workspaceId}`);
+	
+	// Special case: "local" workspace for dev mode
+	if (workspaceId === "local") {
+		const { OPENCODE_URL } = c.env;
+		return newWorkersRpcResponse(c.req.raw, new OpencodeRpcServer(OPENCODE_URL));
+	}
+	
+	// For sandbox workspaces, get the OpenCode URL from metadata
+	const metadata = workspaceMetadata.get(workspaceId);
+	if (!metadata) {
+		return c.json(createErrorResponse(new Error("Workspace not found"), "RPC"), 404);
+	}
+	
+	return newWorkersRpcResponse(c.req.raw, new OpencodeRpcServer(metadata.opencodeUrl));
+});
 
 // ========================================
 // Workspace Mode Proxy
